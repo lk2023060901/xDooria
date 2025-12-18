@@ -2,7 +2,7 @@
 
 ## 概述
 
-XStory 是一款多人在线游戏，采用微服务架构设计。本文档描述整体系统架构、服务划分、数据流、以及关键技术决策。
+xDooria 是一款多人在线游戏，采用微服务架构设计。本文档描述整体系统架构、服务划分、数据流、以及关键技术决策。
 
 ---
 
@@ -410,7 +410,7 @@ kubectl scale deployment game-service --replicas=5
 每个服务启动时注册到 etcd：
 ```go
 // 服务注册示例
-endpoint := endpoints.NewManager(etcdClient, "xstory/services/game")
+endpoint := endpoints.NewManager(etcdClient, "xdooria/services/game")
 endpoint.AddEndpoint(ctx, "game-instance-1", endpoints.Endpoint{
     Addr: "192.168.1.10:50051",
 })
@@ -421,7 +421,7 @@ endpoint.AddEndpoint(ctx, "game-instance-1", endpoints.Endpoint{
 ```go
 // 客户端通过 etcd resolver 自动发现服务
 conn, err := grpc.Dial(
-    "etcd:///xstory/services/game",
+    "etcd:///xdooria/services/game",
     grpc.WithResolvers(resolver),
     grpc.WithDefaultServiceConfig(`{"loadBalancingPolicy":"round_robin"}`),
 )
@@ -455,7 +455,7 @@ conn, err := grpc.Dial(
   - 消息队列堆积
 
 ### 日志
-- **结构化日志**：使用 Zap
+- **结构化日志**：使用 Zap + Lumberjack（日志轮转）
 - **日志聚合**：ELK Stack（Elasticsearch + Logstash + Kibana）
 - **分布式追踪**：Jaeger
 
@@ -488,28 +488,28 @@ conn, err := grpc.Dial(
 
 ### 独立的 Proto 仓库
 
-#### xstory-proto-common
+#### xdooria-proto-common
 公共类型定义（所有仓库共用）
 
-#### xstory-proto-api
+#### xdooria-proto-api
 客户端和服务端通信协议
 
-#### xstory-proto-internal
+#### xdooria-proto-internal
 服务端内部通信协议
 
 ### 依赖关系
 ```
-xstory-proto-api → xstory-proto-common
-xstory-proto-internal → xstory-proto-common
-xstory (服务端) → xstory-proto-api + xstory-proto-internal
-xstory-client (客户端) → xstory-proto-api
+xdooria-proto-api → xdooria-proto-common
+xdooria-proto-internal → xdooria-proto-common
+xdooria (服务端) → xdooria-proto-api + xdooria-proto-internal
+xdooria-client (客户端) → xdooria-proto-api
 ```
 
 ---
 
 ## 配置仓库
 
-### xstory-config
+### xdooria-config
 策划表配置仓库：
 - Excel 原始表格
 - 导出的 JSON 配置
@@ -568,7 +568,7 @@ Kubernetes 集群：
 
 ## 总结
 
-XStory 采用现代微服务架构，具备以下特点：
+xDooria 采用现代微服务架构，具备以下特点：
 
 ✅ **高性能**：Go 语言 + gRPC + Redis
 ✅ **高可用**：服务多实例 + 数据备份

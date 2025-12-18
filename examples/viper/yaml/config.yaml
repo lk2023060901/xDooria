@@ -1,0 +1,45 @@
+server:
+  name: game-service
+  port: 50051
+  env: dev
+  host: 0.0.0.0
+
+database:
+  host: localhost
+  port: 5432
+  user: xdooria
+  password: xdooria123
+  database: xdooria_game
+  max_conns: 20
+  min_conns: 5
+  max_idle_time: 300
+  ssl_mode: disable
+
+redis:
+  addrs:
+    - localhost:6379
+  password: ""
+  db: 0
+  pool_size: 10
+  max_retries: 3
+  dial_timeout: 5
+
+etcd:
+  endpoints:
+    - localhost:2379
+  dial_timeout: 5
+  username: ""
+  password: ""
+
+nsq:
+  nsqd_addr: localhost:4150
+  lookupd_addr: localhost:4161
+  max_in_flight: 200
+
+log:
+  level: debug
+  format: console
+  output_path: logs/game.log
+  max_size: 100
+  max_backups: 10
+  max_age: 30

@@ -2,13 +2,13 @@
 
 ## 概述
 
-本文档详细说明 XStory 游戏服务端的技术栈选型，包括编程语言、数据库、缓存、消息队列、服务发现、以及各种开源库的选择。
+本文档详细说明 xDooria 游戏服务端的技术栈选型，包括编程语言、数据库、缓存、消息队列、服务发现、以及各种开源库的选择。
 
 ---
 
 ## 编程语言
 
-### Go 1.21+
+### Go 1.24+
 
 **选择理由：**
 - 高性能、高并发
@@ -197,20 +197,19 @@ github.com/spf13/viper           // 配置管理
 
 ## 日志
 
-### Zap
+### Zap + Lumberjack
 
-**用途：** 高性能日志库
+**用途：** 高性能日志库 + 日志轮转
 
 **库：**
 ```go
-go.uber.org/zap                  // 高性能日志库
+go.uber.org/zap                           // 高性能日志库
+gopkg.in/natefinch/lumberjack.v2          // 日志轮转
 ```
 
 **选择理由：**
-- 性能极高（结构化日志）
-- 零内存分配
-- 支持多种输出格式
-- 支持日志级别和采样
+- **Zap**: 性能极高（结构化日志）、零内存分配、支持多种输出格式、支持日志级别和采样
+- **Lumberjack**: 自动日志轮转、基于文件大小和时间归档、支持日志压缩
 
 ---
 
@@ -294,9 +293,9 @@ github.com/shopspring/decimal    // 高精度数值计算
 
 ```go
 // go.mod
-module github.com/lk2023060901/xstory
+module github.com/lk2023060901/xdooria
 
-go 1.21
+go 1.24
 
 require (
     // 数据库
@@ -322,6 +321,7 @@ require (
 
     // 日志
     go.uber.org/zap v1.26.0
+    gopkg.in/natefinch/lumberjack.v2 v2.2.1
 
     // 定时任务
     github.com/robfig/cron/v3 v3.0.1
@@ -347,7 +347,7 @@ require (
 | 消息队列 | NSQ | latest | 异步任务和消息广播 |
 | 服务发现 | etcd | 3.5+ | 服务注册和配置中心 |
 | RPC 框架 | gRPC | latest | 服务间通信 |
-| 日志 | Zap | latest | 结构化日志 |
+| 日志 | Zap + Lumberjack | latest | 结构化日志 + 日志轮转 |
 
 ---
 

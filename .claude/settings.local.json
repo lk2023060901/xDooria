@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go mod init:*)",
+      "Bash(go mod tidy:*)",
+      "Bash(go run:*)",
+      "Bash(timeout 3 go run:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

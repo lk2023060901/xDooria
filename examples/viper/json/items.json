@@ -1,0 +1,52 @@
+{
+  "items": [
+    {
+      "id": 1001,
+      "name": "生命药水",
+      "type": 1,
+      "rarity": 1,
+      "max_stack": 99,
+      "price": 50,
+      "description": "恢复100点生命值",
+      "icon": "item_potion_hp_001"
+    },
+    {
+      "id": 1002,
+      "name": "魔法药水",
+      "type": 1,
+      "rarity": 1,
+      "max_stack": 99,
+      "price": 30,
+      "description": "恢复50点魔法值",
+      "icon": "item_potion_mp_001"
+    },
+    {
+      "id": 2001,
+      "name": "铁剑",
+      "type": 2,
+      "rarity": 2,
+      "max_stack": 1,
+      "price": 500,
+      "description": "普通的铁剑，攻击力+10",
+      "icon": "weapon_sword_001",
+      "attributes": {
+        "attack": 10,
+        "durability": 100
+      }
+    },
+    {
+      "id": 3001,
+      "name": "皮甲",
+      "type": 3,
+      "rarity": 2,
+      "max_stack": 1,
+      "price": 300,
+      "description": "轻便的皮甲，防御力+5",
+      "icon": "armor_leather_001",
+      "attributes": {
+        "defense": 5,
+        "durability": 80
+      }
+    }
+  ]
+}

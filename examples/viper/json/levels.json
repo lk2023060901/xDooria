@@ -1,0 +1,37 @@
+{
+  "levels": [
+    {
+      "id": 1,
+      "name": "新手村",
+      "difficulty": 1,
+      "max_players": 30,
+      "time_limit": 600,
+      "reward_exp": 100,
+      "reward_gold": 50,
+      "required_level": 1,
+      "unlock_condition": []
+    },
+    {
+      "id": 2,
+      "name": "森林迷宫",
+      "difficulty": 2,
+      "max_players": 25,
+      "time_limit": 900,
+      "reward_exp": 200,
+      "reward_gold": 100,
+      "required_level": 5,
+      "unlock_condition": ["level_1_cleared"]
+    },
+    {
+      "id": 3,
+      "name": "火山洞穴",
+      "difficulty": 3,
+      "max_players": 20,
+      "time_limit": 1200,
+      "reward_exp": 500,
+      "reward_gold": 300,
+      "required_level": 10,
+      "unlock_condition": ["level_2_cleared", "quest_volcano_unlocked"]
+    }
+  ]
+}
