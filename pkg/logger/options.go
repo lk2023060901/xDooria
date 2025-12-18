@@ -46,3 +46,10 @@ func WithDevelopment(dev bool) Option {
 		l.config.Development = dev
 	}
 }
+
+// WithContextExtractor 设置 context 字段提取器
+func WithContextExtractor(extractor ContextFieldExtractor) Option {
+	return func(l *Logger) {
+		l.contextExtractor = extractor
+	}
+}

@@ -63,6 +63,9 @@ type Config struct {
 	// 性能优化
 	EnableAsync bool `mapstructure:"enable_async"` // 启用异步写入
 	BufferSize  int  `mapstructure:"buffer_size"`  // 缓冲区大小 (字节)
+
+	// Context 字段提取器
+	ContextExtractor ContextFieldExtractor `mapstructure:"-"` // 从 context 提取字段的函数（不序列化）
 }
 
 // RotationConfig 轮换配置
@@ -108,6 +111,7 @@ func DefaultConfig() *Config {
 		GlobalFields:       make(map[string]interface{}),
 		EnableAsync:        false,
 		BufferSize:         256 * 1024, // 256KB
+		ContextExtractor:   DefaultContextExtractor, // 默认不提取字段
 	}
 }
 

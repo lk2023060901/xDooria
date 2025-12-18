@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"context"
 	"os"
 	"sync"
 
@@ -130,3 +131,30 @@ func WithFields(fields ...interface{}) *Logger {
 func Sync() error {
 	return Default().Sync()
 }
+
+// --- Context 版本的便捷函数 ---
+
+func DebugContext(ctx context.Context, msg string, fields ...zap.Field) {
+	Default().DebugContext(ctx, msg, fields...)
+}
+
+func InfoContext(ctx context.Context, msg string, fields ...zap.Field) {
+	Default().InfoContext(ctx, msg, fields...)
+}
+
+func WarnContext(ctx context.Context, msg string, fields ...zap.Field) {
+	Default().WarnContext(ctx, msg, fields...)
+}
+
+func ErrorContext(ctx context.Context, msg string, fields ...zap.Field) {
+	Default().ErrorContext(ctx, msg, fields...)
+}
+
+func PanicContext(ctx context.Context, msg string, fields ...zap.Field) {
+	Default().PanicContext(ctx, msg, fields...)
+}
+
+func FatalContext(ctx context.Context, msg string, fields ...zap.Field) {
+	Default().FatalContext(ctx, msg, fields...)
+}
+

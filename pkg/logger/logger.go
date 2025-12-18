@@ -12,10 +12,11 @@ import (
 // Logger 日志记录器
 type Logger struct {
 	*zap.Logger
-	config       *Config
-	name         string
-	globalFields map[string]interface{}
-	hooks        []Hook
+	config           *Config
+	name             string
+	globalFields     map[string]interface{}
+	hooks            []Hook
+	contextExtractor ContextFieldExtractor
 }
 
 // New 创建新的 Logger
@@ -32,9 +33,10 @@ func New(cfg *Config, opts ...Option) (*Logger, error) {
 	}
 
 	logger := &Logger{
-		config:       mergedConfig,
-		globalFields: make(map[string]interface{}),
-		hooks:        make([]Hook, 0),
+		config:           mergedConfig,
+		globalFields:     make(map[string]interface{}),
+		hooks:            make([]Hook, 0),
+		contextExtractor: mergedConfig.ContextExtractor, // 使用配置中的提取器
 	}
 
 	// 应用选项
@@ -204,11 +206,12 @@ func (l *Logger) parseLevel(level Level) zapcore.Level {
 // Named 创建具名 logger
 func (l *Logger) Named(name string) *Logger {
 	newLogger := &Logger{
-		Logger:       l.Logger.Named(name),
-		config:       l.config,
-		name:         name,
-		globalFields: l.globalFields,
-		hooks:        l.hooks,
+		Logger:           l.Logger.Named(name),
+		config:           l.config,
+		name:             name,
+		globalFields:     l.globalFields,
+		hooks:            l.hooks,
+		contextExtractor: l.contextExtractor,
 	}
 	return newLogger
 }
@@ -229,11 +232,12 @@ func (l *Logger) WithFields(fields ...interface{}) *Logger {
 	}
 
 	newLogger := &Logger{
-		Logger:       l.Logger.With(zapFields...),
-		config:       l.config,
-		name:         l.name,
-		globalFields: l.globalFields,
-		hooks:        l.hooks,
+		Logger:           l.Logger.With(zapFields...),
+		config:           l.config,
+		name:             l.name,
+		globalFields:     l.globalFields,
+		hooks:            l.hooks,
+		contextExtractor: l.contextExtractor,
 	}
 	return newLogger
 }
