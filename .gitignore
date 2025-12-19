@@ -33,6 +33,3 @@ go.work.sum
 
 # Claude Code
 .claude/
-
-# Luban generated output
-xDooria-config/output/
