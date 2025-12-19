@@ -1,0 +1,128 @@
+services:
+  postgres-master:
+    image: postgres:16-alpine
+    container_name: xdooria-postgres-master
+    ports:
+      - "25432:5432"
+    environment:
+      POSTGRES_USER: xdooria
+      POSTGRES_PASSWORD: xdooria_pass
+      POSTGRES_DB: xdooria_test
+      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_REPLICATION_USER: replicator
+      POSTGRES_REPLICATION_PASSWORD: replicator_pass
+    command:
+      - postgres
+      - -c
+      - max_connections=200
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - wal_level=replica
+      - -c
+      - max_wal_senders=10
+      - -c
+      - max_replication_slots=10
+      - -c
+      - hot_standby=on
+      - -c
+      - fsync=off
+      - -c
+      - synchronous_commit=off
+      - -c
+      - full_page_writes=off
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U xdooria -d xdooria_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    tmpfs:
+      - /var/lib/postgresql/data:rw,noexec,nosuid,size=512m
+    volumes:
+      - ./init-master.sh:/docker-entrypoint-initdb.d/init-master.sh:ro
+    networks:
+      - postgres-replication-net
+
+  postgres-slave-1:
+    image: postgres:16-alpine
+    container_name: xdooria-postgres-slave-1
+    ports:
+      - "25433:5432"
+    environment:
+      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_MASTER_HOST: postgres-master
+      POSTGRES_MASTER_PORT: 5432
+      POSTGRES_REPLICATION_USER: replicator
+      POSTGRES_REPLICATION_PASSWORD: replicator_pass
+    depends_on:
+      postgres-master:
+        condition: service_healthy
+    command:
+      - postgres
+      - -c
+      - max_connections=200
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - hot_standby=on
+      - -c
+      - fsync=off
+      - -c
+      - synchronous_commit=off
+      - -c
+      - full_page_writes=off
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    tmpfs:
+      - /var/lib/postgresql/data:rw,noexec,nosuid,size=512m
+    volumes:
+      - ./init-slave.sh:/docker-entrypoint-initdb.d/init-slave.sh:ro
+    networks:
+      - postgres-replication-net
+
+  postgres-slave-2:
+    image: postgres:16-alpine
+    container_name: xdooria-postgres-slave-2
+    ports:
+      - "25434:5432"
+    environment:
+      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_MASTER_HOST: postgres-master
+      POSTGRES_MASTER_PORT: 5432
+      POSTGRES_REPLICATION_USER: replicator
+      POSTGRES_REPLICATION_PASSWORD: replicator_pass
+    depends_on:
+      postgres-master:
+        condition: service_healthy
+    command:
+      - postgres
+      - -c
+      - max_connections=200
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - hot_standby=on
+      - -c
+      - fsync=off
+      - -c
+      - synchronous_commit=off
+      - -c
+      - full_page_writes=off
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    tmpfs:
+      - /var/lib/postgresql/data:rw,noexec,nosuid,size=512m
+    volumes:
+      - ./init-slave.sh:/docker-entrypoint-initdb.d/init-slave.sh:ro
+    networks:
+      - postgres-replication-net
+
+networks:
+  postgres-replication-net:
+    driver: bridge

@@ -9,6 +9,9 @@ var (
 	// ErrInvalidConfig 配置无效
 	ErrInvalidConfig = errors.New("postgres: invalid config")
 
+	// ErrInvalidSlaveLoadBalance 无效的从库负载均衡策略
+	ErrInvalidSlaveLoadBalance = errors.New("postgres: invalid slave load balance strategy")
+
 	// ErrClientClosed 客户端已关闭
 	ErrClientClosed = errors.New("postgres: client is closed")
 

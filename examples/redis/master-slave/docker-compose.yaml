@@ -1,0 +1,71 @@
+services:
+  redis-master:
+    image: redis:7.4-alpine
+    container_name: xdooria-redis-master
+    ports:
+      - "16379:6379"
+    command: >
+      redis-server
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --appendonly no
+      --save ""
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - redis-master-slave-net
+
+  redis-slave-1:
+    image: redis:7.4-alpine
+    container_name: xdooria-redis-slave-1
+    ports:
+      - "16380:6379"
+    command: >
+      redis-server
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --appendonly no
+      --save ""
+      --replicaof redis-master 6379
+      --replica-read-only yes
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - redis-master-slave-net
+
+  redis-slave-2:
+    image: redis:7.4-alpine
+    container_name: xdooria-redis-slave-2
+    ports:
+      - "16381:6379"
+    command: >
+      redis-server
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --appendonly no
+      --save ""
+      --replicaof redis-master 6379
+      --replica-read-only yes
+    depends_on:
+      redis-master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - redis-master-slave-net
+
+networks:
+  redis-master-slave-net:
+    driver: bridge

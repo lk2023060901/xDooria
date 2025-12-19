@@ -3,10 +3,12 @@ package postgres
 import (
 	"context"
 	"fmt"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // QueryOne 查询单条记录
-func (c *Client) QueryOne[T any](ctx context.Context, sql string, args ...any) (*T, error) {
+func QueryOne[T any](c *Client, ctx context.Context, sql string, args ...any) (*T, error) {
 	pool := c.getSlave() // 使用从库查询
 
 	rows, err := pool.Query(ctx, sql, args...)
@@ -19,7 +21,7 @@ func (c *Client) QueryOne[T any](ctx context.Context, sql string, args ...any) (
 }
 
 // QueryAll 查询多条记录
-func (c *Client) QueryAll[T any](ctx context.Context, sql string, args ...any) ([]*T, error) {
+func QueryAll[T any](c *Client, ctx context.Context, sql string, args ...any) ([]*T, error) {
 	pool := c.getSlave() // 使用从库查询
 
 	rows, err := pool.Query(ctx, sql, args...)

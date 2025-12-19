@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/lk2023060901/xdooria/pkg/config"
@@ -81,4 +82,84 @@ func (c *Config) IsStandaloneMode() bool {
 // IsMasterSlaveMode 判断是否为主从模式
 func (c *Config) IsMasterSlaveMode() bool {
 	return c.Master != nil
+}
+
+// Validate 验证配置
+func (c *Config) Validate() error {
+	if c == nil {
+		return ErrNilConfig
+	}
+
+	// 计算配置了几种模式
+	modeCount := 0
+	if c.Standalone != nil {
+		modeCount++
+	}
+	if c.Master != nil {
+		modeCount++
+	}
+
+	// 必须且只能配置一种模式
+	if modeCount != 1 {
+		return ErrInvalidConfig
+	}
+
+	// 验证单机模式配置
+	if c.Standalone != nil {
+		if err := c.Standalone.validate(); err != nil {
+			return err
+		}
+	}
+
+	// 验证主从模式配置
+	if c.Master != nil {
+		if err := c.Master.validate(); err != nil {
+			return err
+		}
+		// 验证从库负载均衡策略
+		if len(c.Slaves) > 0 {
+			if c.SlaveLoadBalance != "" &&
+				c.SlaveLoadBalance != "random" &&
+				c.SlaveLoadBalance != "round_robin" {
+				return ErrInvalidSlaveLoadBalance
+			}
+		}
+	}
+
+	return nil
+}
+
+// validate 验证DBConfig
+func (db *DBConfig) validate() error {
+	if db.Host == "" {
+		return ErrInvalidConfig
+	}
+	if db.Port <= 0 {
+		return ErrInvalidConfig
+	}
+	if db.User == "" {
+		return ErrInvalidConfig
+	}
+	if db.DBName == "" {
+		return ErrInvalidConfig
+	}
+	return nil
+}
+
+// GetSlaveLoadBalance 获取从库负载均衡策略（默认为 random）
+func (c *Config) GetSlaveLoadBalance() string {
+	if c.SlaveLoadBalance == "" {
+		return "random"
+	}
+	return c.SlaveLoadBalance
+}
+
+// BuildDSN 构建 PostgreSQL DSN 连接字符串
+func (db *DBConfig) BuildDSN() string {
+	sslMode := db.SSLMode
+	if sslMode == "" {
+		sslMode = "disable"
+	}
+	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
+		db.User, db.Password, db.Host, db.Port, db.DBName, sslMode)
 }

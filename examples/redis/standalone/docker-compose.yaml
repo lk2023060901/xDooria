@@ -1,0 +1,23 @@
+services:
+  redis-standalone:
+    image: redis:7.4-alpine
+    container_name: xdooria-redis-standalone
+    ports:
+      - "16379:6379"
+    command: >
+      redis-server
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --appendonly no
+      --save ""
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - redis-standalone-net
+
+networks:
+  redis-standalone-net:
+    driver: bridge
