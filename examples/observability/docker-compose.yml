@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  # 示例应用
+  app:
+    build:
+      context: ../..
+      dockerfile: examples/observability/app/Dockerfile
+    container_name: observability-app
+    ports:
+      - "9090:9090"
+    environment:
+      # Sentry DSN (可选 - 仅在 x86 架构下可用)
+      # ARM64/Apple Silicon 用户: Sentry 官方镜像不支持 ARM64
+      # 请使用 Sentry SaaS 服务或者移除此环境变量
+      - SENTRY_DSN=${SENTRY_DSN:-}
+    restart: unless-stopped
+    networks:
+      - observability
+
+  # Prometheus Server
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: observability-prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    ports:
+      - "9091:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    restart: unless-stopped
+    networks:
+      - observability
+
+  # Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: observability-grafana
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    networks:
+      - observability
+
+networks:
+  observability:
+    driver: bridge
+
+volumes:
+  prometheus-data:
+  grafana-data:
