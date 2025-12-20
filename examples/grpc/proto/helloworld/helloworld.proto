@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package helloworld;
+
+option go_package = "github.com/lk2023060901/xdooria/examples/grpc/proto/helloworld";
+
+// Greeter 服务定义
+service Greeter {
+  // SayHello 问候
+  rpc SayHello (HelloRequest) returns (HelloReply) {}
+}
+
+// HelloRequest 问候请求
+message HelloRequest {
+  string name = 1;
+}
+
+// HelloReply 问候响应
+message HelloReply {
+  string message = 1;
+}
