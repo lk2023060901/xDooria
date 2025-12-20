@@ -7,8 +7,19 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// applyQueryTimeout 应用查询超时到 context
+func (c *Client) applyQueryTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	if c.cfg.QueryTimeout > 0 {
+		return context.WithTimeout(ctx, c.cfg.QueryTimeout)
+	}
+	return ctx, func() {}
+}
+
 // QueryOne 查询单条记录
 func QueryOne[T any](c *Client, ctx context.Context, sql string, args ...any) (*T, error) {
+	ctx, cancel := c.applyQueryTimeout(ctx)
+	defer cancel()
+
 	pool := c.getSlave() // 使用从库查询
 
 	rows, err := pool.Query(ctx, sql, args...)
@@ -22,6 +33,9 @@ func QueryOne[T any](c *Client, ctx context.Context, sql string, args ...any) (*
 
 // QueryAll 查询多条记录
 func QueryAll[T any](c *Client, ctx context.Context, sql string, args ...any) ([]*T, error) {
+	ctx, cancel := c.applyQueryTimeout(ctx)
+	defer cancel()
+
 	pool := c.getSlave() // 使用从库查询
 
 	rows, err := pool.Query(ctx, sql, args...)
@@ -35,6 +49,9 @@ func QueryAll[T any](c *Client, ctx context.Context, sql string, args ...any) ([
 
 // Exec 执行写操作（INSERT/UPDATE/DELETE）
 func (c *Client) Exec(ctx context.Context, sql string, args ...any) (int64, error) {
+	ctx, cancel := c.applyQueryTimeout(ctx)
+	defer cancel()
+
 	pool := c.getMaster() // 写操作使用主库
 
 	result, err := pool.Exec(ctx, sql, args...)
@@ -47,6 +64,9 @@ func (c *Client) Exec(ctx context.Context, sql string, args ...any) (int64, erro
 
 // Exists 检查记录是否存在
 func (c *Client) Exists(ctx context.Context, sql string, args ...any) (bool, error) {
+	ctx, cancel := c.applyQueryTimeout(ctx)
+	defer cancel()
+
 	pool := c.getSlave() // 使用从库查询
 
 	var exists bool
@@ -65,6 +85,9 @@ func (c *Client) Insert(ctx context.Context, sql string, args ...any) (int64, er
 
 // InsertBatch 批量插入记录（使用 Pipeline）
 func (c *Client) InsertBatch(ctx context.Context, sql string, argsList [][]any) (int64, error) {
+	ctx, cancel := c.applyQueryTimeout(ctx)
+	defer cancel()
+
 	pool := c.getMaster() // 写操作使用主库
 
 	batch := &pgx.Batch{}
@@ -94,6 +117,9 @@ func (c *Client) Update(ctx context.Context, sql string, args ...any) (int64, er
 
 // UpdateBatch 批量更新记录（使用 Pipeline）
 func (c *Client) UpdateBatch(ctx context.Context, sql string, argsList [][]any) (int64, error) {
+	ctx, cancel := c.applyQueryTimeout(ctx)
+	defer cancel()
+
 	pool := c.getMaster() // 写操作使用主库
 
 	batch := &pgx.Batch{}
@@ -123,6 +149,9 @@ func (c *Client) Delete(ctx context.Context, sql string, args ...any) (int64, er
 
 // DeleteBatch 批量删除记录（使用 Pipeline）
 func (c *Client) DeleteBatch(ctx context.Context, sql string, argsList [][]any) (int64, error) {
+	ctx, cancel := c.applyQueryTimeout(ctx)
+	defer cancel()
+
 	pool := c.getMaster() // 写操作使用主库
 
 	batch := &pgx.Batch{}

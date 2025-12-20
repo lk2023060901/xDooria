@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -37,11 +38,23 @@ type Tx interface {
 
 // txWrapper 事务包装器
 type txWrapper struct {
-	tx pgx.Tx
+	tx      pgx.Tx
+	timeout time.Duration // 查询超时时间
+}
+
+// applyQueryTimeout 应用查询超时到 context
+func (t *txWrapper) applyQueryTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	if t.timeout > 0 {
+		return context.WithTimeout(ctx, t.timeout)
+	}
+	return ctx, func() {}
 }
 
 // QueryOne 查询单条记录
 func (t *txWrapper) QueryOne(ctx context.Context, dest any, sql string, args ...any) error {
+	ctx, cancel := t.applyQueryTimeout(ctx)
+	defer cancel()
+
 	rows, err := t.tx.Query(ctx, sql, args...)
 	if err != nil {
 		return fmt.Errorf("query failed: %w", err)
@@ -57,6 +70,9 @@ func (t *txWrapper) QueryOne(ctx context.Context, dest any, sql string, args ...
 
 // QueryAll 查询多条记录
 func (t *txWrapper) QueryAll(ctx context.Context, dest any, sql string, args ...any) error {
+	ctx, cancel := t.applyQueryTimeout(ctx)
+	defer cancel()
+
 	rows, err := t.tx.Query(ctx, sql, args...)
 	if err != nil {
 		return fmt.Errorf("query failed: %w", err)
@@ -68,6 +84,9 @@ func (t *txWrapper) QueryAll(ctx context.Context, dest any, sql string, args ...
 
 // Exec 执行写操作
 func (t *txWrapper) Exec(ctx context.Context, sql string, args ...any) (int64, error) {
+	ctx, cancel := t.applyQueryTimeout(ctx)
+	defer cancel()
+
 	result, err := t.tx.Exec(ctx, sql, args...)
 	if err != nil {
 		return 0, fmt.Errorf("exec failed: %w", err)
@@ -78,6 +97,9 @@ func (t *txWrapper) Exec(ctx context.Context, sql string, args ...any) (int64, e
 
 // Exists 检查记录是否存在
 func (t *txWrapper) Exists(ctx context.Context, sql string, args ...any) (bool, error) {
+	ctx, cancel := t.applyQueryTimeout(ctx)
+	defer cancel()
+
 	var exists bool
 	err := t.tx.QueryRow(ctx, sql, args...).Scan(&exists)
 	if err != nil {
@@ -110,6 +132,9 @@ func (t *txWrapper) Insert(ctx context.Context, sql string, args ...any) (int64,
 
 // InsertBatch 批量插入记录（使用 Pipeline）
 func (t *txWrapper) InsertBatch(ctx context.Context, sql string, argsList [][]any) (int64, error) {
+	ctx, cancel := t.applyQueryTimeout(ctx)
+	defer cancel()
+
 	batch := &pgx.Batch{}
 	for _, args := range argsList {
 		batch.Queue(sql, args...)
@@ -137,6 +162,9 @@ func (t *txWrapper) Update(ctx context.Context, sql string, args ...any) (int64,
 
 // UpdateBatch 批量更新记录（使用 Pipeline）
 func (t *txWrapper) UpdateBatch(ctx context.Context, sql string, argsList [][]any) (int64, error) {
+	ctx, cancel := t.applyQueryTimeout(ctx)
+	defer cancel()
+
 	batch := &pgx.Batch{}
 	for _, args := range argsList {
 		batch.Queue(sql, args...)
@@ -164,6 +192,9 @@ func (t *txWrapper) Delete(ctx context.Context, sql string, args ...any) (int64,
 
 // DeleteBatch 批量删除记录（使用 Pipeline）
 func (t *txWrapper) DeleteBatch(ctx context.Context, sql string, argsList [][]any) (int64, error) {
+	ctx, cancel := t.applyQueryTimeout(ctx)
+	defer cancel()
+
 	batch := &pgx.Batch{}
 	for _, args := range argsList {
 		batch.Queue(sql, args...)
@@ -190,7 +221,7 @@ func (c *Client) BeginTx(ctx context.Context) (Tx, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	return &txWrapper{tx: tx}, nil
+	return &txWrapper{tx: tx, timeout: c.cfg.QueryTimeout}, nil
 }
 
 // TxIsolationLevel 事务隔离级别
@@ -230,7 +261,7 @@ func (c *Client) BeginTxWithOptions(ctx context.Context, opts TxOptions) (Tx, er
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction with options: %w", err)
 	}
-	return &txWrapper{tx: tx}, nil
+	return &txWrapper{tx: tx, timeout: c.cfg.QueryTimeout}, nil
 }
 
 // WithTx 在事务中执行函数
