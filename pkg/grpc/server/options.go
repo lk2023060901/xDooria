@@ -2,6 +2,7 @@ package server
 
 import (
 	"github.com/lk2023060901/xdooria/pkg/logger"
+	"github.com/lk2023060901/xdooria/pkg/registry"
 	"google.golang.org/grpc"
 )
 
@@ -36,9 +37,9 @@ func WithStreamInterceptors(interceptors ...grpc.StreamServerInterceptor) Option
 	}
 }
 
-// WithServiceRegistrar 设置服务注册器（用于自定义服务注册逻辑）
-func WithServiceRegistrar(registrar ServiceRegistrar) Option {
+// WithRegistrar 设置服务注册器（用于自定义服务注册逻辑）
+func WithRegistrar(registrar registry.Registrar) Option {
 	return func(s *Server) {
-		s.serviceRegistrar = registrar
+		s.registrar = registrar
 	}
 }
