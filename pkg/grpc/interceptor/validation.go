@@ -1,6 +1,7 @@
 package interceptor
 
 import (
+	"buf.build/go/protovalidate"
 	"context"
 	"fmt"
 
@@ -9,6 +10,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 // Validator 参数校验接口
@@ -153,18 +155,47 @@ func ClientValidationInterceptor(logger *logger.Logger, cfg *ValidationConfig) g
 	}
 }
 
+// globalValidator 全局 protovalidate 验证器（延迟初始化）
+var globalValidator protovalidate.Validator
+
+// getValidator 获取或创建全局验证器
+func getValidator() (protovalidate.Validator, error) {
+	if globalValidator == nil {
+		var err error
+		globalValidator, err = protovalidate.New()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create protovalidate validator: %w", err)
+		}
+	}
+	return globalValidator, nil
+}
+
 // validate 执行校验
 func validate(msg interface{}) error {
 	if msg == nil {
 		return nil
 	}
 
-	// 如果消息实现了 Validator 接口，调用 Validate 方法
+	// 1. 优先使用 protovalidate（基于 proto 文件中的 buf.validate 规则）
+	if protoMsg, ok := msg.(proto.Message); ok {
+		validator, err := getValidator()
+		if err != nil {
+			// 如果 protovalidate 初始化失败，回退到 Validator 接口
+			goto fallbackToValidator
+		}
+
+		if err := validator.Validate(protoMsg); err != nil {
+			return err
+		}
+	}
+
+fallbackToValidator:
+	// 2. 回退到自定义 Validator 接口（兼容旧代码）
 	if validator, ok := msg.(Validator); ok {
 		return validator.Validate()
 	}
 
-	// 没有实现 Validator 接口，不校验
+	// 没有任何验证方式，跳过
 	return nil
 }
 

@@ -1,0 +1,16 @@
+# buf.gen.yaml - Buf 代码生成配置
+version: v2
+managed:
+  enabled: false
+plugins:
+  # 生成 Go protobuf 代码
+  - local: protoc-gen-go
+    out: .
+    opt:
+      - paths=source_relative
+
+  # 生成 Go gRPC 代码
+  - local: protoc-gen-go-grpc
+    out: .
+    opt:
+      - paths=source_relative
