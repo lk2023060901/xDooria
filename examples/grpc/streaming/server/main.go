@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"log"
@@ -24,11 +23,6 @@ func (s *streamServer) ListNumbers(req *pb.ListRequest, stream pb.StreamService_
 	log.Printf("ListNumbers called with count: %d", req.GetCount())
 
 	for i := int32(1); i <= req.GetCount(); i++ {
-		// 检查客户端是否取消
-		if err := stream.Context().Done(); err != nil {
-			return fmt.Errorf("client cancelled: %v", err)
-		}
-
 		// 发送数字
 		if err := stream.Send(&pb.NumberResponse{Number: i}); err != nil {
 			return err
