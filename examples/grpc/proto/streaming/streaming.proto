@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package streaming;
+
+option go_package = "github.com/lk2023060901/xdooria/examples/grpc/proto/streaming";
+
+// StreamService 演示三种流式 RPC
+service StreamService {
+  // Server Streaming: 服务端流式返回多个响应
+  rpc ListNumbers (ListRequest) returns (stream NumberResponse) {}
+
+  // Client Streaming: 客户端流式发送多个请求
+  rpc Sum (stream NumberRequest) returns (SumResponse) {}
+
+  // Bidirectional Streaming: 双向流式通信
+  rpc Chat (stream ChatMessage) returns (stream ChatMessage) {}
+}
+
+// ListRequest 列表请求
+message ListRequest {
+  int32 count = 1;  // 返回的数字数量
+}
+
+// NumberResponse 数字响应
+message NumberResponse {
+  int32 number = 1;
+}
+
+// NumberRequest 数字请求
+message NumberRequest {
+  int32 number = 1;
+}
+
+// SumResponse 求和响应
+message SumResponse {
+  int32 sum = 1;
+  int32 count = 2;
+}
+
+// ChatMessage 聊天消息
+message ChatMessage {
+  string user = 1;
+  string message = 2;
+  int64 timestamp = 3;
+}
