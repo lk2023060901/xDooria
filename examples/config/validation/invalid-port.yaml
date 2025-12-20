@@ -1,18 +1,14 @@
 server:
-  port: 8080
+  port: 70000  # 超出端口范围 (max=65535)
   host: "0.0.0.0"
 
 database:
   host: "localhost"
   port: 5432
   user: "xdooria"
-  password: "password123"
+  password: "securepassword123"
   dbname: "xdooria_db"
-  timeout: 30s
 
 logger:
   level: "info"
   format: "json"
-
-feature:
-  enabled: true
