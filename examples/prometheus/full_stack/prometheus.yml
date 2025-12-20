@@ -1,0 +1,18 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+
+scrape_configs:
+  # 采集示例应用的指标
+  - job_name: 'example_app'
+    static_configs:
+      - targets: ['app:8080']
+        labels:
+          service: 'example_app'
+          environment: 'development'
+
+  # 采集 Prometheus 自身的指标
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
