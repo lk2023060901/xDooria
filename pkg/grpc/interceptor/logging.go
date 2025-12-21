@@ -7,9 +7,11 @@ import (
 	"time"
 
 	"github.com/lk2023060901/xdooria/pkg/logger"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -76,6 +78,11 @@ func ServerLoggingInterceptor(logger *logger.Logger, cfg *LoggingConfig) grpc.Un
 			zap.String("grpc.type", "unary"),
 		}
 
+		// 提取并记录 trace ID
+		if traceID := extractTraceID(ctx); traceID != "" {
+			fields = append(fields, zap.String("trace_id", traceID))
+		}
+
 		// 记录 peer 信息
 		if cfg.LogPeer {
 			if p, ok := peer.FromContext(ctx); ok {
@@ -102,6 +109,11 @@ func ServerLoggingInterceptor(logger *logger.Logger, cfg *LoggingConfig) grpc.Un
 		fields = []zap.Field{
 			zap.String("grpc.method", info.FullMethod),
 			zap.String("grpc.code", code.String()),
+		}
+
+		// 提取并记录 trace ID
+		if traceID := extractTraceID(ctx); traceID != "" {
+			fields = append(fields, zap.String("trace_id", traceID))
 		}
 
 		if cfg.LogDuration {
@@ -143,6 +155,7 @@ func StreamServerLoggingInterceptor(logger *logger.Logger, cfg *LoggingConfig) g
 		}
 
 		start := time.Now()
+		ctx := ss.Context()
 
 		// 记录流开始
 		fields := []zap.Field{
@@ -152,8 +165,13 @@ func StreamServerLoggingInterceptor(logger *logger.Logger, cfg *LoggingConfig) g
 			zap.Bool("grpc.is_server_stream", info.IsServerStream),
 		}
 
+		// 提取并记录 trace ID
+		if traceID := extractTraceID(ctx); traceID != "" {
+			fields = append(fields, zap.String("trace_id", traceID))
+		}
+
 		if cfg.LogPeer {
-			if p, ok := peer.FromContext(ss.Context()); ok {
+			if p, ok := peer.FromContext(ctx); ok {
 				fields = append(fields, zap.String("grpc.peer", p.Addr.String()))
 			}
 		}
@@ -170,6 +188,11 @@ func StreamServerLoggingInterceptor(logger *logger.Logger, cfg *LoggingConfig) g
 		fields = []zap.Field{
 			zap.String("grpc.method", info.FullMethod),
 			zap.String("grpc.code", code.String()),
+		}
+
+		// 提取并记录 trace ID
+		if traceID := extractTraceID(ctx); traceID != "" {
+			fields = append(fields, zap.String("trace_id", traceID))
 		}
 
 		if cfg.LogDuration {
@@ -206,6 +229,11 @@ func ClientLoggingInterceptor(logger *logger.Logger, cfg *LoggingConfig) grpc.Un
 			zap.String("grpc.target", cc.Target()),
 		}
 
+		// 提取并记录 trace ID
+		if traceID := extractTraceID(ctx); traceID != "" {
+			fields = append(fields, zap.String("trace_id", traceID))
+		}
+
 		if cfg.LogRequest {
 			if reqJSON := marshalPayload(req, cfg); reqJSON != "" {
 				fields = append(fields, zap.String("grpc.request", reqJSON))
@@ -224,6 +252,11 @@ func ClientLoggingInterceptor(logger *logger.Logger, cfg *LoggingConfig) grpc.Un
 		fields = []zap.Field{
 			zap.String("grpc.method", method),
 			zap.String("grpc.code", code.String()),
+		}
+
+		// 提取并记录 trace ID
+		if traceID := extractTraceID(ctx); traceID != "" {
+			fields = append(fields, zap.String("trace_id", traceID))
 		}
 
 		if cfg.LogDuration {
@@ -348,4 +381,23 @@ func shouldSkipMethod(method string, skipMethods []string) bool {
 		}
 	}
 	return false
+}
+
+// extractTraceID 从 context 中提取 trace ID
+// 优先从 OpenTelemetry span 提取，其次从 metadata 提取
+func extractTraceID(ctx context.Context) string {
+	// 1. 尝试从 OpenTelemetry span 提取
+	span := trace.SpanFromContext(ctx)
+	if span.SpanContext().IsValid() {
+		return span.SpanContext().TraceID().String()
+	}
+
+	// 2. 尝试从 metadata 提取 x-trace-id
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		if traceIDs := md.Get("x-trace-id"); len(traceIDs) > 0 {
+			return traceIDs[0]
+		}
+	}
+
+	return ""
 }

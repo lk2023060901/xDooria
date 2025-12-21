@@ -66,6 +66,9 @@ type Pool struct {
 	unaryInterceptors  []grpc.UnaryClientInterceptor
 	streamInterceptors []grpc.StreamClientInterceptor
 
+	// Prometheus 指标
+	metrics *PoolMetrics
+
 	// 状态管理
 	mu               sync.RWMutex
 	closed           bool
@@ -113,6 +116,9 @@ func NewPool(cfg *Config, poolCfg *PoolConfig, opts ...Option) (*Pool, error) {
 		p.streamInterceptors = tmpClient.streamInterceptors
 	}
 
+	// 初始化 Prometheus 指标
+	p.metrics = NewPoolMetrics("grpc", "client", cfg.Target, nil)
+
 	// 初始化连接池
 	if err := p.init(); err != nil {
 		return nil, fmt.Errorf("failed to initialize pool: %w", err)
@@ -155,6 +161,9 @@ func (p *Pool) init() error {
 		zap.Int("size", len(p.conns)),
 	)
 
+	// 更新初始指标
+	p.updateMetrics()
+
 	return nil
 }
 
@@ -187,6 +196,8 @@ func (p *Pool) buildDialOptions() []grpc.DialOption {
 
 // Get 从池中获取连接
 func (p *Pool) Get(ctx context.Context) (*grpc.ClientConn, error) {
+	start := time.Now()
+
 	p.mu.RLock()
 	if p.closed {
 		p.mu.RUnlock()
@@ -201,13 +212,23 @@ func (p *Pool) Get(ctx context.Context) (*grpc.ClientConn, error) {
 		defer cancel()
 	}
 
+	var err error
+	var timeout bool
+
 	select {
 	case pc := <-p.connChan:
+		// 记录获取连接的时间
+		duration := time.Since(start)
+		p.metrics.RecordGetConnection(duration, nil, false)
+
 		// 标记为使用中
 		pc.mu.Lock()
 		pc.inUse = true
 		pc.lastUsedTime = time.Now()
 		pc.mu.Unlock()
+
+		// 更新指标
+		p.updateMetrics()
 
 		// 检查连接状态
 		if !p.isConnHealthy(pc.conn) {
@@ -219,6 +240,8 @@ func (p *Pool) Get(ctx context.Context) (*grpc.ClientConn, error) {
 			if err := p.recreateConn(pc); err != nil {
 				// 如果重建失败，归还到池中并返回错误
 				p.Put(pc.conn)
+				duration := time.Since(start)
+				p.metrics.RecordGetConnection(duration, err, false)
 				return nil, fmt.Errorf("failed to recreate connection: %w", err)
 			}
 		}
@@ -226,12 +249,19 @@ func (p *Pool) Get(ctx context.Context) (*grpc.ClientConn, error) {
 		return pc.conn, nil
 
 	case <-ctx.Done():
+		duration := time.Since(start)
+		err = ctx.Err()
+		timeout = true
+		p.metrics.RecordGetConnection(duration, err, timeout)
+
 		if p.config.WaitForConn {
 			return nil, fmt.Errorf("timeout waiting for connection: %w", ctx.Err())
 		}
 		return nil, ErrPoolExhausted
 
 	case <-p.stopCh:
+		duration := time.Since(start)
+		p.metrics.RecordGetConnection(duration, ErrPoolClosed, false)
 		return nil, ErrPoolClosed
 	}
 }
@@ -256,6 +286,8 @@ func (p *Pool) Put(conn *grpc.ClientConn) {
 			// 归还到通道
 			select {
 			case p.connChan <- pc:
+				// 更新指标
+				p.updateMetrics()
 			default:
 				p.logger.Warn("connection channel full, dropping connection")
 			}
@@ -281,6 +313,11 @@ func (p *Pool) Close() error {
 	// 等待健康检查任务完成
 	if p.healthCheckFuture != nil {
 		p.healthCheckFuture.Await()
+	}
+
+	// 取消注册 Prometheus 指标
+	if p.metrics != nil {
+		p.metrics.Unregister(nil)
 	}
 
 	// 关闭所有连接
@@ -324,6 +361,7 @@ func (p *Pool) recreateConn(pc *pooledConn) error {
 	// 创建新连接
 	newConn, err := p.createConn()
 	if err != nil {
+		p.metrics.RecordHealthCheckFailure()
 		return err
 	}
 
@@ -331,6 +369,9 @@ func (p *Pool) recreateConn(pc *pooledConn) error {
 	pc.conn = newConn
 	pc.lastUsedTime = time.Now()
 	pc.mu.Unlock()
+
+	// 记录连接重建
+	p.metrics.RecordConnectionRecreation()
 
 	p.logger.Info("connection recreated",
 		zap.String("target", p.clientCfg.Target),
@@ -436,6 +477,23 @@ func (p *Pool) Stats() PoolStats {
 		Ready:     readyCount,
 		Idle:      idleCount,
 	}
+}
+
+// updateMetrics 更新 Prometheus 指标
+func (p *Pool) updateMetrics() {
+	if p.metrics == nil {
+		return
+	}
+
+	stats := p.Stats()
+	idle := stats.Total - stats.InUse
+
+	p.metrics.UpdatePoolStats(
+		p.config.Size,  // capacity
+		stats.InUse,    // active
+		idle,           // idle
+		stats.Total,    // total
+	)
 }
 
 // PoolStats 连接池统计信息
