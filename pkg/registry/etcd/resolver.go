@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/lk2023060901/xdooria/pkg/config"
 	xdooriaetcd "github.com/lk2023060901/xdooria/pkg/etcd"
 	"github.com/lk2023060901/xdooria/pkg/logger"
 	"github.com/lk2023060901/xdooria/pkg/registry"
@@ -22,13 +23,18 @@ type Resolver struct {
 
 // NewResolver 创建 etcd 服务发现器
 func NewResolver(cfg *Config) (*Resolver, error) {
-	if err := cfg.Validate(); err != nil {
+	newCfg, err := config.MergeConfig(DefaultConfig(), cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to merge config: %w", err)
+	}
+
+	if err := newCfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 
 	etcdCfg := &xdooriaetcd.Config{
-		Endpoints:   cfg.Endpoints,
-		DialTimeout: cfg.DialTimeout,
+		Endpoints:   newCfg.Endpoints,
+		DialTimeout: newCfg.DialTimeout,
 	}
 
 	client, err := xdooriaetcd.New(etcdCfg)
@@ -38,7 +44,7 @@ func NewResolver(cfg *Config) (*Resolver, error) {
 
 	return &Resolver{
 		client: client,
-		config: cfg,
+		config: newCfg,
 		logger: logger.Default().Named("resolver.etcd"),
 		pool:   conc.NewDefaultPool[struct{}](),
 	}, nil

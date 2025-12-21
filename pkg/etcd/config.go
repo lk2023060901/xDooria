@@ -9,6 +9,7 @@ import (
 
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 // DefaultConfig 返回默认配置
@@ -73,9 +74,17 @@ func (c *Config) ToClientConfig() (*clientv3.Config, error) {
 	}
 
 	// gRPC 配置
-	config.DialOptions = []grpc.DialOption{
-		grpc.WithBlock(),
+	dialOpts := []grpc.DialOption{
+		// 禁用 gRPC 的默认服务配置解析，避免 etcd 内部 resolver 冲突
+		grpc.WithDisableServiceConfig(),
 	}
+
+	// 如果没有配置 TLS，使用 insecure credentials
+	if config.TLS == nil {
+		dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	}
+
+	config.DialOptions = dialOpts
 
 	return config, nil
 }

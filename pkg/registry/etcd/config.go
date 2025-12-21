@@ -15,15 +15,18 @@ type Config struct {
 	TTL time.Duration `mapstructure:"ttl" json:"ttl"`
 	// Namespace 命名空间前缀（如 /services）
 	Namespace string `mapstructure:"namespace" json:"namespace"`
+	// VirtualNodes 一致性哈希虚拟节点数量
+	VirtualNodes int `mapstructure:"virtual_nodes" json:"virtual_nodes"`
 }
 
 // DefaultConfig 返回默认配置
 func DefaultConfig() *Config {
 	return &Config{
-		Endpoints:   []string{"localhost:2379"},
-		DialTimeout: 5 * time.Second,
-		TTL:         10 * time.Second,
-		Namespace:   "/services",
+		Endpoints:    []string{"localhost:2379"},
+		DialTimeout:  5 * time.Second,
+		TTL:          10 * time.Second,
+		Namespace:    "/services",
+		VirtualNodes: 150,
 	}
 }
 

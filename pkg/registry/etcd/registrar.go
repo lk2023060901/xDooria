@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/lk2023060901/xdooria/pkg/config"
 	xdooriaetcd "github.com/lk2023060901/xdooria/pkg/etcd"
 	"github.com/lk2023060901/xdooria/pkg/logger"
 	"github.com/lk2023060901/xdooria/pkg/registry"
@@ -25,13 +26,18 @@ type Registrar struct {
 
 // NewRegistrar 创建 etcd 服务注册器
 func NewRegistrar(cfg *Config) (*Registrar, error) {
-	if err := cfg.Validate(); err != nil {
+	newCfg, err := config.MergeConfig(DefaultConfig(), cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to merge config: %w", err)
+	}
+
+	if err := newCfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 
 	etcdCfg := &xdooriaetcd.Config{
-		Endpoints:   cfg.Endpoints,
-		DialTimeout: cfg.DialTimeout,
+		Endpoints:   newCfg.Endpoints,
+		DialTimeout: newCfg.DialTimeout,
 	}
 
 	client, err := xdooriaetcd.New(etcdCfg)
@@ -41,7 +47,7 @@ func NewRegistrar(cfg *Config) (*Registrar, error) {
 
 	return &Registrar{
 		client:  client,
-		config:  cfg,
+		config:  newCfg,
 		logger:  logger.Default().Named("registry.etcd"),
 		pool:    conc.NewDefaultPool[struct{}](),
 		stopCh:  make(chan struct{}),
@@ -152,6 +158,7 @@ func (r *Registrar) keepAlive() {
 	ch, err := r.client.Lease().KeepAlive(ctx, xdooriaetcd.LeaseID(r.leaseID))
 	if err != nil {
 		r.logger.Error("failed to keep alive", zap.Error(err))
+		r.reRegister()
 		return
 	}
 
@@ -162,9 +169,53 @@ func (r *Registrar) keepAlive() {
 		case _, ok := <-ch:
 			if !ok {
 				r.logger.Warn("keep alive channel closed, attempting to re-register")
-				// TODO: 实现自动重新注册逻辑
+				r.reRegister()
 				return
 			}
 		}
 	}
+}
+
+// reRegister 自动重新注册
+func (r *Registrar) reRegister() {
+	if r.serviceInfo == nil {
+		r.logger.Warn("no service info to re-register")
+		return
+	}
+
+	ctx := context.Background()
+
+	// 创建新的租约
+	leaseID, err := r.client.Lease().Grant(ctx, int64(r.config.TTL.Seconds()))
+	if err != nil {
+		r.logger.Error("failed to grant lease for re-register", zap.Error(err))
+		return
+	}
+	r.leaseID = int64(leaseID)
+
+	// 序列化服务信息
+	value, err := json.Marshal(r.serviceInfo)
+	if err != nil {
+		r.logger.Error("failed to marshal service info for re-register", zap.Error(err))
+		return
+	}
+
+	// 重新注册服务
+	key := r.buildKey(r.serviceInfo.ServiceName, r.serviceInfo.Address)
+	if err := r.client.KV().PutWithLease(ctx, key, string(value), leaseID); err != nil {
+		r.logger.Error("failed to re-register service", zap.Error(err))
+		return
+	}
+
+	r.logger.Info("service re-registered successfully",
+		zap.String("service", r.serviceInfo.ServiceName),
+		zap.String("address", r.serviceInfo.Address),
+		zap.Int64("new_lease_id", r.leaseID),
+	)
+
+	// 重新启动心跳保活
+	r.pool.Submit(func() (struct{}, error) {
+		r.keepAlive()
+		return struct{}{}, nil
+	})
 }
