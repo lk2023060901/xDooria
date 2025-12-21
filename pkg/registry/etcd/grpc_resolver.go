@@ -208,7 +208,15 @@ func (r *grpcResolver) watch() {
 		return
 	}
 
-	ctx := context.Background()
+	// 创建可取消的 context，当 resolver 关闭时自动取消
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		<-r.closeCh
+		cancel()
+	}()
+
 	serviceName := r.target.Endpoint()
 
 	watchCh, err := res.Watch(ctx, serviceName)
@@ -226,7 +234,9 @@ func (r *grpcResolver) watch() {
 			return
 		case services, ok := <-watchCh:
 			if !ok {
-				r.logger.Warn("watch channel closed",
+				// watch channel 关闭通常是由于 context 取消或 etcd 连接问题
+				// 这是正常的清理流程，使用 Debug 级别而非 Warn
+				r.logger.Debug("watch channel closed",
 					zap.String("service", serviceName),
 				)
 				return
