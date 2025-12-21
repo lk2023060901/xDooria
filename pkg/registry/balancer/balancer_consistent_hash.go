@@ -1,4 +1,4 @@
-package etcd
+package balancer
 
 import (
 	"fmt"

@@ -14,4 +14,10 @@ var (
 
 	// ErrDialFailed 连接失败
 	ErrDialFailed = errors.New("grpc/client: dial failed")
+
+	// ErrPoolClosed 连接池已关闭
+	ErrPoolClosed = errors.New("grpc/client: pool is closed")
+
+	// ErrPoolExhausted 连接池耗尽
+	ErrPoolExhausted = errors.New("grpc/client: pool exhausted")
 )

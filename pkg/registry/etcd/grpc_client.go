@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/lk2023060901/xdooria/pkg/registry/balancer"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
@@ -60,7 +61,7 @@ func WithDisableHealthCheck() ClientOption {
 // serviceName 格式: etcd:///service-name
 func DialService(serviceName string, opts ...ClientOption) (*grpc.ClientConn, error) {
 	options := &clientOptions{
-		balancerName: RoundRobinBalancerName, // 默认使用 Round Robin
+		balancerName: balancer.RoundRobinBalancerName, // 默认使用 Round Robin
 		timeout:      5 * time.Second,
 		dialOptions:  make([]grpc.DialOption, 0),
 	}
@@ -106,18 +107,30 @@ func DialService(serviceName string, opts ...ClientOption) (*grpc.ClientConn, er
 
 // DialServiceWithConsistentHash 使用一致性哈希创建连接
 func DialServiceWithConsistentHash(serviceName string, opts ...ClientOption) (*grpc.ClientConn, error) {
-	opts = append(opts, WithBalancer(ConsistentHashBalancerName))
+	opts = append(opts, WithBalancer(balancer.ConsistentHashBalancerName))
 	return DialService(serviceName, opts...)
 }
 
 // DialServiceWithRoundRobin 使用 Round Robin 创建连接
 func DialServiceWithRoundRobin(serviceName string, opts ...ClientOption) (*grpc.ClientConn, error) {
-	opts = append(opts, WithBalancer(RoundRobinBalancerName))
+	opts = append(opts, WithBalancer(balancer.RoundRobinBalancerName))
+	return DialService(serviceName, opts...)
+}
+
+// DialServiceWithWeightedRoundRobin 使用 Weighted Round Robin 创建连接
+func DialServiceWithWeightedRoundRobin(serviceName string, opts ...ClientOption) (*grpc.ClientConn, error) {
+	opts = append(opts, WithBalancer(balancer.WeightedRoundRobinBalancerName))
+	return DialService(serviceName, opts...)
+}
+
+// DialServiceWithRandom 使用 Random 创建连接
+func DialServiceWithRandom(serviceName string, opts ...ClientOption) (*grpc.ClientConn, error) {
+	opts = append(opts, WithBalancer(balancer.RandomBalancerName))
 	return DialService(serviceName, opts...)
 }
 
 // WithHashKey 在 context 中添加一致性哈希的 hash-key
 // 用于一致性哈希负载均衡时指定路由键
 func WithHashKey(ctx context.Context, key string) context.Context {
-	return metadata.AppendToOutgoingContext(ctx, HashKeyHeader, key)
+	return metadata.AppendToOutgoingContext(ctx, balancer.HashKeyHeader, key)
 }

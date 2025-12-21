@@ -107,7 +107,7 @@ func (r *Resolver) Watch(ctx context.Context, serviceName string) (<-chan []*reg
 
 			r.logger.Debug("service list updated",
 				zap.String("service", serviceName),
-				zap.String("event_type", string(event.Type)),
+				zap.Int("event_type", int(event.Type)),
 				zap.Int("count", len(services)),
 			)
 
