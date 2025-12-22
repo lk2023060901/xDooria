@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **RPC 框架**: gRPC + Protocol Buffers
 - **数据库**: PostgreSQL 14+ (持久化存储)
 - **缓存**: Redis 7.0+ (会话、排行榜、实时状态)
-- **消息队列**: NSQ (异步任务、聊天广播)
+- **消息队列**: Kafka 3.6+ (异步任务、聊天广播)
 - **服务发现**: etcd 3.5+ (服务注册、配置中心)
 - **日志**: Zap (结构化日志)
 
@@ -31,7 +31,7 @@ github.com/grpc-ecosystem/go-grpc-middleware
 // 基础设施
 go.etcd.io/etcd/client/v3           // 服务发现
 github.com/redis/go-redis/v9         // Redis 客户端
-github.com/nsqio/go-nsq              // NSQ 客户端
+github.com/segmentio/kafka-go        // Kafka 客户端
 
 // 配置与工具
 github.com/spf13/viper               // 配置管理
@@ -76,7 +76,7 @@ github.com/shopspring/decimal        // 精确货币计算
 - **Game**: 内存缓存玩家数据 (一致性哈希 + Redis)
 - **Hall**: 维护大厅状态 (一致性哈希 + Redis)
 - **Room**: 维护房间状态 (一致性哈希 + Redis)
-- **Chat**: 维护聊天连接 (NSQ 消息广播)
+- **Chat**: 维护聊天连接 (Kafka 消息广播)
 
 **无状态服务 (10个)** - 可直接水平扩展:
 - Auth, Match, Team, Rank, Mail, Trading, Guild, Doll, Home, Friend
@@ -84,7 +84,7 @@ github.com/shopspring/decimal        // 精确货币计算
 ### 数据流
 
 ```
-客户端 → Gateway → Auth (JWT) → 业务服务 → 基础设施 (PostgreSQL/Redis/NSQ)
+客户端 → Gateway → Auth (JWT) → 业务服务 → 基础设施 (PostgreSQL/Redis/Kafka)
                                           ↓
                                   外部平台 (账号/GM/支付/物流)
 ```
@@ -132,7 +132,7 @@ xdooria-client (客户端) → xdooria-proto-api
 
 1. **无状态优先**: 大部分服务设计为无状态，方便水平扩展
 2. **Redis 共享状态**: 有状态服务使用 Redis 实现跨实例状态共享
-3. **异步解耦**: 使用 NSQ 处理异步任务和事件驱动通信
+3. **异步解耦**: 使用 Kafka 处理异步任务和事件驱动通信
 4. **一致性哈希**: 有状态服务 (Game/Hall/Room) 按 ID 分配到不同实例
 5. **服务发现**: 通过 etcd 实现服务注册和 gRPC 负载均衡
 
@@ -172,7 +172,7 @@ kubectl scale deployment game-service --replicas=5
 
 **有状态服务**:
 - **Game/Hall/Room**: 按玩家/大厅/房间 ID 一致性哈希，状态存 Redis
-- **Chat**: 所有实例订阅 NSQ；消息广播到所有连接的客户端
+- **Chat**: 所有实例订阅 Kafka Topic；消息广播到所有连接的客户端
 
 ### 数据库扩展
 
@@ -182,7 +182,7 @@ kubectl scale deployment game-service --replicas=5
 ## 高可用设计
 
 - **容错机制**: 超时控制、重试机制 (幂等操作)、熔断器、降级策略
-- **数据容错**: PostgreSQL 主从复制、Redis AOF+RDB、定期备份、NSQ 消息持久化
+- **数据容错**: PostgreSQL 主从复制、Redis AOF+RDB、定期备份、Kafka 消息持久化和副本机制
 - **监控**: Prometheus (QPS、延迟、错误率)、Zap 结构化日志、ELK Stack、Jaeger 分布式追踪
 
 ## 安全设计

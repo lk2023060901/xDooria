@@ -59,9 +59,9 @@ xDooria 是一款多人在线游戏，采用微服务架构设计。本文档描
                              ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │                         基础设施层                                │
-│  ┌──────────┐  ┌────────┐  ┌──────┐  ┌──────────────────┐      │
-│  │PostgreSQL│  │ Redis  │  │ NSQ  │  │ etcd (服务发现)   │      │
-│  └──────────┘  └────────┘  └──────┘  └──────────────────┘      │
+│  ┌──────────┐  ┌────────┐  ┌────────┐  ┌──────────────────┐    │
+│  │PostgreSQL│  │ Redis  │  │ Kafka  │  │ etcd (服务发现)   │    │
+│  └──────────┘  └────────┘  └────────┘  └──────────────────┘    │
 └─────────────────────────────────────────────────────────────────┘
             │
             ↓
@@ -94,7 +94,7 @@ xDooria 是一款多人在线游戏，采用微服务架构设计。本文档描
 - 使用 Redis 集群和 PostgreSQL 主从复制
 
 ### 4. 异步解耦
-- 使用消息队列（NSQ）处理异步任务
+- 使用消息队列（Kafka）处理异步任务
 - 服务间通过事件通知解耦
 - 提高系统吞吐量和响应速度
 
@@ -134,7 +134,7 @@ xDooria 是一款多人在线游戏，采用微服务架构设计。本文档描
 ### 基础设施层
 - **PostgreSQL**：持久化存储
 - **Redis**：缓存和实时数据
-- **NSQ**：消息队列
+- **Kafka**：消息队列
 - **etcd**：服务发现和配置中心
 
 ---
@@ -257,16 +257,16 @@ sequenceDiagram
     participant Gateway as Gateway
     participant Chat1 as Chat Service 实例1
     participant Chat2 as Chat Service 实例2
-    participant NSQ as NSQ
+    participant Kafka as Kafka
     participant DB as PostgreSQL
 
     Client1->>Gateway: 发送聊天消息
     Gateway->>Chat1: 转发消息（gRPC Stream）
     Note over Chat1: 敏感词过滤
-    Chat1->>NSQ: 发布消息到频道
+    Chat1->>Kafka: 发布消息到 Topic
 
-    NSQ-->>Chat1: 广播消息
-    NSQ-->>Chat2: 广播消息
+    Kafka-->>Chat1: 消费消息
+    Kafka-->>Chat2: 消费消息
 
     Chat1->>Gateway: 推送消息
     Gateway->>Client1: 消息送达
@@ -385,9 +385,9 @@ kubectl scale deployment game-service --replicas=5
 - 支持房间迁移（高级功能）
 
 ##### Chat Service
-- 所有实例订阅 NSQ 消息
+- 所有实例订阅 Kafka Topic
 - 客户端建立长连接到任意实例
-- 消息通过 NSQ 广播到所有实例
+- 消息通过 Kafka 广播到所有实例
 
 ### 数据库扩展
 
@@ -441,7 +441,7 @@ conn, err := grpc.Dial(
 - **PostgreSQL 主从复制**：主库故障自动切换
 - **Redis 持久化**：AOF + RDB
 - **定期备份**：数据库定期全量备份
-- **消息队列持久化**：NSQ 消息持久化到磁盘
+- **消息队列持久化**：Kafka 消息持久化到磁盘，支持副本机制
 
 ---
 

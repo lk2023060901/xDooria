@@ -168,7 +168,7 @@
 
 ### P2 级（第三阶段 - 高级功能）
 
-#### 8. 消息队列 (NSQ Client)
+#### 8. 消息队列 (Kafka Client)
 **优先级：⭐⭐⭐**
 
 **开发理由：**
@@ -177,7 +177,7 @@
 - 聊天消息广播
 
 **技术选型：**
-- `github.com/nsqio/go-nsq`
+- `github.com/segmentio/kafka-go`
 
 **核心功能：**
 - 生产者封装
@@ -306,7 +306,7 @@ xDooria/
 │   │       └── watcher.go   # 服务监听
 │   ├── mq/                  # 消息队列
 │   │   ├── message.go       # 消息定义
-│   │   └── nsq/             # NSQ 封装
+│   │   └── kafka/           # Kafka 封装
 │   │       ├── producer.go  # 生产者
 │   │       └── consumer.go  # 消费者
 │   ├── auth/                # 认证
@@ -366,7 +366,7 @@ type Config struct {
     Database DatabaseConfig `mapstructure:"database"`
     Redis    RedisConfig    `mapstructure:"redis"`
     Etcd     EtcdConfig     `mapstructure:"etcd"`
-    NSQ      NSQConfig      `mapstructure:"nsq"`
+    Kafka    KafkaConfig    `mapstructure:"kafka"`
     Log      LogConfig      `mapstructure:"log"`
 }
 
@@ -403,9 +403,9 @@ type EtcdConfig struct {
     DialTimeout int      `mapstructure:"dial_timeout"` // 秒
 }
 
-// NSQConfig NSQ 配置
-type NSQConfig struct {
-    NSQDAddr       string `mapstructure:"nsqd_addr"`
+// KafkaConfig Kafka 配置
+type KafkaConfig struct {
+    Brokers        []string `mapstructure:"brokers"`
     LookupdAddr    string `mapstructure:"lookupd_addr"`
     MaxInFlight    int    `mapstructure:"max_in_flight"`
 }
@@ -517,8 +517,9 @@ etcd:
     - localhost:2379
   dial_timeout: 5
 
-nsq:
-  nsqd_addr: localhost:4150
+kafka:
+  brokers:
+    - localhost:9092
   lookupd_addr: localhost:4161
   max_in_flight: 200
 
@@ -1694,115 +1695,131 @@ func (m *Manager) Refresh(tokenString string) (string, error) {
 
 ---
 
-### 9. NSQ 消息队列 (pkg/mq/nsq)
+### 9. Kafka 消息队列 (pkg/mq/kafka)
 
 ```go
-// pkg/mq/nsq/producer.go
-package nsq
+// pkg/mq/kafka/producer.go
+package kafka
 
 import (
+    "context"
     "fmt"
 
-    "github.com/nsqio/go-nsq"
+    "github.com/segmentio/kafka-go"
 )
 
-// Producer NSQ 生产者
+// Producer Kafka 生产者
 type Producer struct {
-    producer *nsq.Producer
+    writer *kafka.Writer
 }
 
 // NewProducer 创建生产者
-func NewProducer(addr string) (*Producer, error) {
-    config := nsq.NewConfig()
-
-    producer, err := nsq.NewProducer(addr, config)
-    if err != nil {
-        return nil, fmt.Errorf("failed to create producer: %w", err)
-    }
-
-    // 测试连接
-    if err := producer.Ping(); err != nil {
-        return nil, fmt.Errorf("failed to ping nsqd: %w", err)
+func NewProducer(brokers []string) (*Producer, error) {
+    writer := &kafka.Writer{
+        Addr:     kafka.TCP(brokers...),
+        Balancer: &kafka.LeastBytes{},
     }
 
     return &Producer{
-        producer: producer,
+        writer: writer,
     }, nil
 }
 
 // Publish 发布消息
-func (p *Producer) Publish(topic string, message []byte) error {
-    return p.producer.Publish(topic, message)
+func (p *Producer) Publish(ctx context.Context, topic string, message []byte) error {
+    return p.writer.WriteMessages(ctx, kafka.Message{
+        Topic: topic,
+        Value: message,
+    })
 }
 
-// PublishAsync 异步发布消息
-func (p *Producer) PublishAsync(topic string, message []byte, doneChan chan *nsq.ProducerTransaction) error {
-    return p.producer.PublishAsync(topic, message, doneChan, nil)
+// PublishWithKey 发布带 Key 的消息（保证同一 Key 的消息到同一分区）
+func (p *Producer) PublishWithKey(ctx context.Context, topic string, key, message []byte) error {
+    return p.writer.WriteMessages(ctx, kafka.Message{
+        Topic: topic,
+        Key:   key,
+        Value: message,
+    })
 }
 
-// Stop 停止生产者
-func (p *Producer) Stop() {
-    p.producer.Stop()
+// Close 关闭生产者
+func (p *Producer) Close() error {
+    return p.writer.Close()
 }
 ```
 
 ```go
-// pkg/mq/nsq/consumer.go
-package nsq
+// pkg/mq/kafka/consumer.go
+package kafka
 
 import (
+    "context"
     "fmt"
 
-    "github.com/nsqio/go-nsq"
+    "github.com/segmentio/kafka-go"
 
     "github.com/lk2023060901/xdooria/pkg/logger"
+    "go.uber.org/zap"
 )
 
-// Consumer NSQ 消费者
+// Consumer Kafka 消费者
 type Consumer struct {
-    consumer *nsq.Consumer
+    reader *kafka.Reader
 }
 
 // Handler 消息处理器
-type Handler func(message *nsq.Message) error
+type Handler func(ctx context.Context, message kafka.Message) error
 
 // NewConsumer 创建消费者
-func NewConsumer(topic, channel string, handler Handler, maxInFlight int) (*Consumer, error) {
-    config := nsq.NewConfig()
-    config.MaxInFlight = maxInFlight
+func NewConsumer(brokers []string, groupID, topic string, handler Handler) (*Consumer, error) {
+    reader := kafka.NewReader(kafka.ReaderConfig{
+        Brokers:  brokers,
+        GroupID:  groupID,
+        Topic:    topic,
+        MinBytes: 10e3, // 10KB
+        MaxBytes: 10e6, // 10MB
+    })
 
-    consumer, err := nsq.NewConsumer(topic, channel, config)
-    if err != nil {
-        return nil, fmt.Errorf("failed to create consumer: %w", err)
+    consumer := &Consumer{
+        reader: reader,
     }
 
-    // 设置消息处理器
-    consumer.AddHandler(nsq.HandlerFunc(func(message *nsq.Message) error {
+    // 启动消费协程
+    go consumer.consume(handler)
+
+    return consumer, nil
+}
+
+// consume 消费消息
+func (c *Consumer) consume(handler Handler) {
+    ctx := context.Background()
+    for {
+        message, err := c.reader.FetchMessage(ctx)
+        if err != nil {
+            logger.Error("failed to fetch message", zap.Error(err))
+            continue
+        }
+
         // 调用业务处理器
-        if err := handler(message); err != nil {
+        if err := handler(ctx, message); err != nil {
             logger.Error("failed to handle message",
-                zap.String("topic", topic),
-                zap.String("channel", channel),
+                zap.String("topic", message.Topic),
+                zap.Int("partition", message.Partition),
                 zap.Error(err),
             )
-            return err
+            continue
         }
-        return nil
-    }))
 
-    return &Consumer{
-        consumer: consumer,
-    }, nil
+        // 提交 offset
+        if err := c.reader.CommitMessages(ctx, message); err != nil {
+            logger.Error("failed to commit message", zap.Error(err))
+        }
+    }
 }
 
-// ConnectToNSQLookupd 连接到 NSQLookupd
-func (c *Consumer) ConnectToNSQLookupd(addr string) error {
-    return c.consumer.ConnectToNSQLookupd(addr)
-}
-
-// ConnectToNSQD 连接到 NSQD
-func (c *Consumer) ConnectToNSQD(addr string) error {
-    return c.consumer.ConnectToNSQD(addr)
+// Close 关闭消费者
+func (c *Consumer) Close() error {
+    return c.reader.Close()
 }
 
 // Stop 停止消费者
@@ -1852,7 +1869,7 @@ func (c *Consumer) Stop() {
 
 | 组件 | 预计时间 | 关键任务 |
 |------|---------|---------|
-| NSQ 消息队列 | 3 天 | 生产者、消费者、消息重试 |
+| Kafka 消息队列 | 3 天 | 生产者、消费者、消息重试 |
 | 定时任务 | 2 天 | Cron 封装、任务管理 |
 
 **里程碑：** 支持异步任务处理和定时任务调度
@@ -2131,9 +2148,10 @@ services:
     ports:
       - "2379:2379"
 
-  nsqd:
-    image: nsqio/nsq
-    command: /nsqd
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    environment:
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
     ports:
       - "4150:4150"
       - "4151:4151"

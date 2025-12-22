@@ -88,7 +88,7 @@ github.com/redis/go-redis/v9     // Redis 客户端
 
 ## 消息队列
 
-### NSQ
+### Kafka
 
 **用途：** 异步任务处理和消息广播
 
@@ -98,15 +98,20 @@ github.com/redis/go-redis/v9     // Redis 客户端
 - 聊天消息广播
 - 邮件批量发送
 - 排行榜异步计算
+- 事件溯源和日志收集
 
 **Go 客户端库：**
 ```go
-github.com/nsqio/go-nsq          // NSQ 客户端
+github.com/segmentio/kafka-go    // Kafka 客户端（推荐）
+github.com/IBM/sarama            // Kafka 客户端（官方推荐）
 ```
 
 **选择理由：**
-- 简单易用，部署方便
-- 分布式架构，高可用
+- 高吞吐量，低延迟
+- 持久化存储，支持消息回溯
+- 成熟的生态系统
+- 支持事务和exactly-once语义
+- 分区机制，天然支持消息顺序
 - 无需依赖 ZooKeeper
 - 支持消息持久化
 - Go 原生实现，性能优秀
@@ -314,7 +319,7 @@ require (
     github.com/redis/go-redis/v9 v9.3.0
 
     // 消息队列
-    github.com/nsqio/go-nsq v1.1.0
+    github.com/segmentio/kafka-go v0.4.45
 
     // 配置管理
     github.com/spf13/viper v1.17.0
@@ -344,7 +349,7 @@ require (
 | 编程语言 | Go | 1.21+ | 服务端开发 |
 | 数据库 | PostgreSQL | 14+ | 持久化存储 |
 | 缓存 | Redis | 7.0+ | 缓存和实时数据 |
-| 消息队列 | NSQ | latest | 异步任务和消息广播 |
+| 消息队列 | Kafka | 3.6+ | 异步任务和消息广播 |
 | 服务发现 | etcd | 3.5+ | 服务注册和配置中心 |
 | RPC 框架 | gRPC | latest | 服务间通信 |
 | 日志 | Zap + Lumberjack | latest | 结构化日志 + 日志轮转 |
