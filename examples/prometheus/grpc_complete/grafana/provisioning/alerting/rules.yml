@@ -1,0 +1,128 @@
+# Grafana 告警规则配置 - 示例告警规则
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: live_stream_alerts
+    folder: 直播监控告警
+    interval: 30s
+    rules:
+      # 1. 高并发观众告警
+      - uid: high_viewer_count
+        title: 直播间观众数过高
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: sum(live_viewer_count) > 1000
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              conditions:
+                - evaluator:
+                    params: [1000]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+        noDataState: NoData
+        execErrState: Error
+        for: 1m
+        annotations:
+          summary: "直播间总观众数超过 1000 人"
+          description: "当前直播间总观众数: {{ $values.A.Value }}，已超过阈值 1000"
+          runbook_url: "https://wiki.example.com/runbook/high-viewer-count"
+        labels:
+          severity: warning
+          service: live-stream
+
+      # 2. 主播数量过低告警
+      - uid: low_streamer_count
+        title: 活跃主播数量过低
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: sum(live_streamer_online_count) < 2
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              conditions:
+                - evaluator:
+                    params: [2]
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+        noDataState: NoData
+        execErrState: Error
+        for: 2m
+        annotations:
+          summary: "活跃主播数量过低"
+          description: "当前活跃主播数: {{ $values.A.Value }}，低于正常值 2"
+          runbook_url: "https://wiki.example.com/runbook/low-streamer"
+        labels:
+          severity: critical
+          service: live-stream
+
+      # 3. 礼物收入异常告警
+      - uid: low_gift_income
+        title: 礼物收入异常低
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: rate(live_gift_total_amount_sum[5m]) < 10
+              refId: A
+          - refId: C
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              refId: C
+              conditions:
+                - evaluator:
+                    params: [10]
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: "礼物收入速率过低"
+          description: "最近 5 分钟礼物收入速率: {{ $values.A.Value }} 元/秒，低于正常值 10 元/秒"
+          runbook_url: "https://wiki.example.com/runbook/low-gift-income"
+        labels:
+          severity: warning
+          service: live-stream

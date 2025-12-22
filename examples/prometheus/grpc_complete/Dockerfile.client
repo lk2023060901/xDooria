@@ -17,7 +17,7 @@ RUN go mod download
 COPY . .
 
 # 构建客户端
-RUN CGO_ENABLED=0 GOOS=linux go build -o /app/client ./examples/prometheus/grpc_complete/app/client.go
+RUN CGO_ENABLED=0 GOOS=linux go build -o /app/client ./examples/prometheus/grpc_complete/client
 
 # 运行阶段
 FROM alpine:latest

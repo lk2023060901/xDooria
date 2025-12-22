@@ -5,7 +5,7 @@ services:
   grpc-server:
     build:
       context: ../../../
-      dockerfile: examples/prometheus/grpc_complete/app/Dockerfile.server
+      dockerfile: examples/prometheus/grpc_complete/Dockerfile.server
     container_name: grpc_server
     ports:
       - "50051:50051"  # gRPC 服务端口
@@ -21,7 +21,7 @@ services:
   grpc-client:
     build:
       context: ../../../
-      dockerfile: examples/prometheus/grpc_complete/app/Dockerfile.client
+      dockerfile: examples/prometheus/grpc_complete/Dockerfile.client
     container_name: grpc_client
     ports:
       - "9101:9101"    # Prometheus 指标端口
@@ -84,6 +84,22 @@ services:
     depends_on:
       - prometheus
     restart: unless-stopped
+
+  # 告警网关 - 接收 Grafana Webhook 并转发到飞书
+  alert-gateway:
+    build:
+      context: ../../../
+      dockerfile: examples/prometheus/grpc_complete/Dockerfile.alert-gateway
+    container_name: alert_gateway
+    ports:
+      - "8080:8080"
+    networks:
+      - grpc_monitoring
+    restart: unless-stopped
+    environment:
+      - PORT=8080
+      - FEISHU_WEBHOOK_URL=${FEISHU_WEBHOOK_URL}  # 从宿主机环境变量读取
+      - FEISHU_SECRET=${FEISHU_SECRET:-}          # 可选的飞书签名密钥
 
 networks:
   grpc_monitoring:
