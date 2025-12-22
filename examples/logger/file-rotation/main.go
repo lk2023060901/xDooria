@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	fmt.Println("=== Logger File Rotation 示例 ===\n")
+	fmt.Println("=== Logger File Rotation 示例 ===")
 
 	// 示例 1: 按大小轮换 (Size Rotation)
 	fmt.Println("【1. 按大小轮换】")

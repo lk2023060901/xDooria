@@ -9,9 +9,7 @@ import (
 	"time"
 
 	pb "github.com/lk2023060901/xdooria/examples/grpc/proto/helloworld"
-	"github.com/lk2023060901/xdooria/pkg/etcd"
 	"github.com/lk2023060901/xdooria/pkg/grpc/server"
-	"github.com/lk2023060901/xdooria/pkg/registry"
 	etcdRegistry "github.com/lk2023060901/xdooria/pkg/registry/etcd"
 )
 
@@ -29,24 +27,14 @@ func (s *greeterServer) SayHello(ctx context.Context, req *pb.HelloRequest) (*pb
 }
 
 func main() {
-	// 创建 etcd 客户端
-	etcdCfg := &etcd.Config{
+	// 创建服务注册器（内部会创建 etcd client）
+	registrarCfg := &etcdRegistry.Config{
 		Endpoints:   []string{"localhost:2379"},
 		DialTimeout: 5 * time.Second,
+		TTL:         10 * time.Second,
 	}
 
-	etcdClient, err := etcd.New(etcdCfg)
-	if err != nil {
-		log.Fatalf("Failed to create etcd client: %v", err)
-	}
-	defer etcdClient.Close()
-
-	// 创建服务注册器
-	registrarCfg := &etcdRegistry.Config{
-		TTL: 10 * time.Second,
-	}
-
-	registrar, err := etcdRegistry.NewRegistrar(etcdClient, registrarCfg)
+	registrar, err := etcdRegistry.NewRegistrar(registrarCfg)
 	if err != nil {
 		log.Fatalf("Failed to create registrar: %v", err)
 	}

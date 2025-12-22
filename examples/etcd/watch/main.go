@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	fmt.Println("=== etcd Watch 监听功能示例 ===\n")
+	fmt.Println("=== etcd Watch 监听功能示例 ===")
 
 	client, err := etcd.New(&etcd.Config{
 		Endpoints:   []string{"localhost:2379"},

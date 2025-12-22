@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	fmt.Println("=== etcd Transaction 事务示例 ===\n")
+	fmt.Println("=== etcd Transaction 事务示例 ===")
 
 	client, err := etcd.New(&etcd.Config{
 		Endpoints:   []string{"localhost:2379"},

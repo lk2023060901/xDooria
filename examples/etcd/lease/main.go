@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	fmt.Println("=== etcd Lease 租约管理示例 ===\n")
+	fmt.Println("=== etcd Lease 租约管理示例 ===")
 
 	client, err := etcd.New(&etcd.Config{
 		Endpoints:   []string{"localhost:2379"},

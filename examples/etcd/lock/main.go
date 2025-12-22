@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	fmt.Println("=== etcd Lock 分布式锁示例 ===\n")
+	fmt.Println("=== etcd Lock 分布式锁示例 ===")
 
 	client, err := etcd.New(&etcd.Config{
 		Endpoints:   []string{"localhost:2379"},

@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	fmt.Println("=== etcd Election 选举功能示例 ===\n")
+	fmt.Println("=== etcd Election 选举功能示例 ===")
 
 	client, err := etcd.New(&etcd.Config{
 		Endpoints:   []string{"localhost:2379"},

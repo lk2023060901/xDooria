@@ -25,7 +25,7 @@ type AppConfig struct {
 }
 
 func main() {
-	fmt.Println("=== 示例 6：配置合并 ===\n")
+	fmt.Println("=== 示例 6：配置合并 ===")
 
 	// 1. 基本合并：src 覆盖 dst
 	fmt.Println("【1. 基本合并】")

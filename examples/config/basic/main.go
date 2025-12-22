@@ -31,7 +31,7 @@ type AppConfig struct {
 }
 
 func main() {
-	fmt.Println("=== 示例 1：基本使用 ===\n")
+	fmt.Println("=== 示例 1：基本使用 ===")
 
 	// 创建配置管理器
 	mgr := config.NewManager()

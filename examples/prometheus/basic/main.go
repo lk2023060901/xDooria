@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	fmt.Println("=== Prometheus 基础使用示例 ===\n")
+	fmt.Println("=== Prometheus 基础使用示例 ===")
 
 	// 创建 Prometheus 客户端
 	// HTTP 服务器会自动启动在 :9090/metrics

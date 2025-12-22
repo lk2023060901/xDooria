@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	fmt.Println("=== Prometheus HTTP 集成示例 ===\n")
+	fmt.Println("=== Prometheus HTTP 集成示例 ===")
 
 	// 创建 Prometheus 客户端（不启动独立服务器）
 	client, err := prometheus.New(&prometheus.Config{

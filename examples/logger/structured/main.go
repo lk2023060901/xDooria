@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	fmt.Println("=== Logger Structured Logging 示例 ===\n")
+	fmt.Println("=== Logger Structured Logging 示例 ===")
 
 	// 示例 1: JSON 格式的结构化日志
 	fmt.Println("【1. JSON 格式】")

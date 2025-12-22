@@ -70,7 +70,7 @@ type LogConfig struct {
 }
 
 func main() {
-	fmt.Println("=== Viper YAML 示例 ===\n")
+	fmt.Println("=== Viper YAML 示例 ===")
 
 	// 示例 1: 基本用法 - 加载整个配置
 	example1()

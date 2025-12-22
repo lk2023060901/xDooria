@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	fmt.Println("=== Logger Hook 示例 ===\n")
+	fmt.Println("=== Logger Hook 示例 ===")
 
 	// 示例 1: 使用内置的敏感数据脱敏 Hook
 	fmt.Println("【1. 敏感数据脱敏】")

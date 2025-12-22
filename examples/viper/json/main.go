@@ -42,7 +42,7 @@ type LevelsConfig struct {
 }
 
 func main() {
-	fmt.Println("=== Viper JSON 示例 ===\n")
+	fmt.Println("=== Viper JSON 示例 ===")
 
 	// 示例 1: 加载道具配置
 	example1()

@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	fmt.Println("=== Prometheus 完整栈示例应用 ===\n")
+	fmt.Println("=== Prometheus 完整栈示例应用 ===")
 
 	// 创建 Prometheus 客户端（不启动独立服务器，使用集成模式）
 	client, err := prometheus.New(&prometheus.Config{

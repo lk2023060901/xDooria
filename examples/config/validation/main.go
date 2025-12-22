@@ -34,7 +34,7 @@ type ValidConfig struct {
 }
 
 func main() {
-	fmt.Println("=== 示例 4：配置验证 ===\n")
+	fmt.Println("=== 示例 4：配置验证 ===")
 
 	v := config.NewValidator()
 

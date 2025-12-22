@@ -23,7 +23,7 @@ type AppConfig struct {
 }
 
 func main() {
-	fmt.Println("=== 示例 5：配置热重载 ===\n")
+	fmt.Println("=== 示例 5：配置热重载 ===")
 
 	mgr := config.NewManager()
 
@@ -67,14 +67,14 @@ func main() {
 		cfg = newCfg
 	})
 
-	fmt.Println("✅ 配置热重载监听已启动\n")
+	fmt.Println("✅ 配置热重载监听已启动")
 	fmt.Println("💡 测试步骤：")
 	fmt.Println("  1. 打开另一个终端")
 	fmt.Println("  2. 修改 config.yaml 文件")
 	fmt.Println("     例如: sed -i '' 's/port: 8080/port: 9090/' config.yaml")
 	fmt.Println("     或者: echo 'server:\\n  port: 9090\\n  host: \"0.0.0.0\"\\nlogger:\\n  level: \"debug\"' > config.yaml")
 	fmt.Println("  3. 观察此终端的输出")
-	fmt.Println("  4. 按 Ctrl+C 退出程序\n")
+	fmt.Println("  4. 按 Ctrl+C 退出程序")
 
 	// 定期打印当前配置（方便观察）
 	ticker := time.NewTicker(10 * time.Second)

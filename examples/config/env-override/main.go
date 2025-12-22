@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	fmt.Println("=== 示例 3：环境变量覆盖配置 ===\n")
+	fmt.Println("=== 示例 3：环境变量覆盖配置 ===")
 
 	// 设置环境变量进行演示
 	fmt.Println("【设置环境变量】")

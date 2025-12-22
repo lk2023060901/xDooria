@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	fmt.Println("=== 示例 2：UnmarshalKey - 解析部分配置 ===\n")
+	fmt.Println("=== 示例 2：UnmarshalKey - 解析部分配置 ===")
 
 	mgr := config.NewManager()
 	if err := mgr.LoadFile("config.yaml"); err != nil {

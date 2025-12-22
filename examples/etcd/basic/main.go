@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	fmt.Println("=== etcd 基础使用示例 ===\n")
+	fmt.Println("=== etcd 基础使用示例 ===")
 
 	// 1. 创建客户端
 	fmt.Println("【1. 创建客户端】")

@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	fmt.Println("=== 示例 7：高级用法 ===\n")
+	fmt.Println("=== 示例 7：高级用法 ===")
 
 	// 1. 使用默认值
 	fmt.Println("【1. 使用默认值】")

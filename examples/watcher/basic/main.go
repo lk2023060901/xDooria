@@ -30,14 +30,13 @@ type DatabaseConfig struct {
 }
 
 func main() {
-	fmt.Println("=== Config Watcher 示例 ===\n")
+	fmt.Println("=== Config Watcher 示例 ===")
 
-	// 创建配置监听器
-	watcher, err := config.NewWatcher[AppConfig]("config.yaml", "yaml")
+	// 创建配置监听器（支持 yaml、json、toml）
+	watcher, err := config.NewWatcher[AppConfig]("config.yaml")
 	if err != nil {
 		log.Fatalf("创建监听器失败: %v", err)
 	}
-	defer watcher.Stop()
 
 	// 获取初始配置
 	cfg := watcher.GetConfig()
@@ -54,7 +53,7 @@ func main() {
 	fmt.Println("1. 程序正在监听 config.yaml 文件的变化")
 	fmt.Println("2. 请尝试修改 config.yaml 文件（例如修改端口号）")
 	fmt.Println("3. 保存文件后，程序会自动检测并重新加载配置")
-	fmt.Println("4. 按 Ctrl+C 退出程序\n")
+	fmt.Println("4. 按 Ctrl+C 退出程序")
 
 	// 等待退出信号
 	quit := make(chan os.Signal, 1)

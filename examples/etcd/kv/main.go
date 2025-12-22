@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	fmt.Println("=== etcd KV 键值操作示例 ===\n")
+	fmt.Println("=== etcd KV 键值操作示例 ===")
 
 	client, err := etcd.New(&etcd.Config{
 		Endpoints:   []string{"localhost:2379"},

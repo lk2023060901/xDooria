@@ -16,8 +16,6 @@ import (
 	"github.com/lk2023060901/xdooria/pkg/logger"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 func main() {
@@ -29,26 +27,32 @@ func main() {
 	requestRate := getEnvInt("REQUEST_RATE", 10)
 
 	// 初始化 logger
-	logger := logger.Default()
+	appLogger := logger.Default()
 
 	// 创建 Prometheus 注册器
 	reg := prometheus.NewRegistry()
 
-	// 创建客户端指标
-	clientMetrics := interceptor.NewClientMetrics(reg)
+	// 创建客户端指标配置
+	metricsCfg := interceptor.DefaultClientMetricsConfig()
+	clientMetrics := interceptor.NewClientMetrics(metricsCfg)
+
+	// 注册指标到 Prometheus
+	if err := clientMetrics.Register(reg); err != nil {
+		log.Fatalf("注册指标失败: %v", err)
+	}
 
 	// 创建拦截器链
-	chain := interceptor.NewClientInterceptorChain()
+	chain := interceptor.NewClientChain()
 
 	// 添加 Metrics 拦截器
-	chain.AddUnary(
-		clientMetrics.UnaryClientInterceptor(),
+	chain.AddUnaryWithPriority(
+		interceptor.ClientMetricsInterceptor(clientMetrics, metricsCfg),
 		interceptor.PriorityMetrics,
 	)
 
 	// 添加 Logging 拦截器
-	chain.AddUnary(
-		interceptor.ClientLoggingInterceptor(logger, interceptor.DefaultLoggingConfig()),
+	chain.AddUnaryWithPriority(
+		interceptor.ClientLoggingInterceptor(appLogger, interceptor.DefaultLoggingConfig()),
 		interceptor.PriorityLogging,
 	)
 
@@ -70,7 +74,6 @@ func main() {
 		clientCfg,
 		poolCfg,
 		client.WithUnaryInterceptors(chain.GetUnaryInterceptors()...),
-		client.WithDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())),
 	)
 	if err != nil {
 		log.Fatalf("创建连接池失败: %v", err)

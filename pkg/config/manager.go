@@ -1,3 +1,4 @@
+// pkg/config/manager.go
 package config
 
 import (
@@ -9,7 +10,30 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Manager 配置管理器接口
+// Manager 通用配置管理器接口
+//
+// 适用场景：框架内部、动态 key 访问、需要接口抽象
+//
+// 使用示例：
+//
+//	mgr := config.NewManager()
+//	mgr.LoadFile("config.yaml")
+//	mgr.BindEnv("APP")
+//
+//	// 动态获取配置
+//	port := mgr.GetInt("server.port")
+//	host := mgr.GetString("server.host")
+//
+//	// 解析到结构体
+//	var dbCfg DBConfig
+//	mgr.UnmarshalKey("database", &dbCfg)
+//
+//	// 监听配置变化
+//	mgr.Watch(func() {
+//	    log.Println("config file changed")
+//	})
+//
+// 如需强类型配置和类型安全的回调，请使用 Watcher[T]
 type Manager interface {
 	// LoadFile 加载配置文件
 	LoadFile(path string) error
