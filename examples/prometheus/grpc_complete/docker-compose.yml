@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  # gRPC 服务端 - 提供 gRPC 服务并暴露指标
+  grpc-server:
+    build:
+      context: ../../../
+      dockerfile: examples/prometheus/grpc_complete/app/Dockerfile.server
+    container_name: grpc_server
+    ports:
+      - "50051:50051"  # gRPC 服务端口
+      - "9100:9100"    # Prometheus 指标端口
+    networks:
+      - grpc_monitoring
+    restart: unless-stopped
+    environment:
+      - SERVER_PORT=50051
+      - METRICS_PORT=9100
+
+  # gRPC 客户端 - 调用服务并暴露指标
+  grpc-client:
+    build:
+      context: ../../../
+      dockerfile: examples/prometheus/grpc_complete/app/Dockerfile.client
+    container_name: grpc_client
+    ports:
+      - "9101:9101"    # Prometheus 指标端口
+    networks:
+      - grpc_monitoring
+    depends_on:
+      - grpc-server
+    restart: unless-stopped
+    environment:
+      - SERVER_ADDR=grpc-server:50051
+      - METRICS_PORT=9101
+      - REQUEST_RATE=10  # 每秒请求数
+
+  # Prometheus 服务器 - 采集和存储指标
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=7d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    networks:
+      - grpc_monitoring
+    restart: unless-stopped
+
+  # Grafana - 可视化仪表板
+  grafana:
+    image: grafana/grafana:10.2.2
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    environment:
+      # 管理员账号
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      # 基本设置
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+      # 中文界面
+      - GF_DEFAULT_LOCALE=zh-CN
+      # 启用匿名访问（可选，方便演示）
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      # 数据源设置
+      - GF_DATASOURCES_DEFAULT_NAME=Prometheus
+    networks:
+      - grpc_monitoring
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+networks:
+  grpc_monitoring:
+    driver: bridge
+
+volumes:
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
