@@ -3,6 +3,7 @@ package etcd
 import (
 	"context"
 
+	"github.com/lk2023060901/xdooria/pkg/util/conc"
 	"go.etcd.io/etcd/client/v3/concurrency"
 )
 
@@ -88,15 +89,15 @@ func (elector *Elector) Leader(ctx context.Context) (*ElectionValue, error) {
 func (elector *Elector) Observe(ctx context.Context, handler func(*ElectionValue)) error {
 	observeCh := elector.election.Observe(ctx)
 
-	go func() {
+	conc.Go(func() (struct{}, error) {
 		for {
 			select {
 			case <-ctx.Done():
-				return
+				return struct{}{}, nil
 
 			case resp, ok := <-observeCh:
 				if !ok {
-					return
+					return struct{}{}, nil
 				}
 
 				if len(resp.Kvs) == 0 {
@@ -114,7 +115,7 @@ func (elector *Elector) Observe(ctx context.Context, handler func(*ElectionValue
 				handler(event)
 			}
 		}
-	}()
+	})
 
 	return nil
 }

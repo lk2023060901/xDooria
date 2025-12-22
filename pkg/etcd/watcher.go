@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/lk2023060901/xdooria/pkg/util/conc"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
@@ -71,7 +72,7 @@ func (w *Watcher) watch(ctx context.Context, key string, isPrefix bool, handler 
 	watchCh := w.watcher.Watch(watchCtx, key, opts...)
 
 	// 处理事件
-	go func() {
+	conc.Go(func() (struct{}, error) {
 		defer func() {
 			w.mu.Lock()
 			delete(w.watches, key)
@@ -81,7 +82,8 @@ func (w *Watcher) watch(ctx context.Context, key string, isPrefix bool, handler 
 		if err := w.processWatchEvents(watchCtx, key, watchCh, handler); err != nil {
 			// 监听出错，可以记录日志
 		}
-	}()
+		return struct{}{}, nil
+	})
 
 	return nil
 }

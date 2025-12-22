@@ -211,10 +211,11 @@ func (r *grpcResolver) watch() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go func() {
+	conc.Go(func() (struct{}, error) {
 		<-r.closeCh
 		cancel()
-	}()
+		return struct{}{}, nil
+	})
 
 	serviceName := r.target.Endpoint()
 

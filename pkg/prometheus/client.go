@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/lk2023060901/xdooria/pkg/util/conc"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -96,12 +97,13 @@ func (c *Client) startHTTPServer() error {
 		WriteTimeout: c.config.HTTPServer.Timeout,
 	}
 
-	go func() {
+	conc.Go(func() (struct{}, error) {
 		if err := c.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			// 可以集成到框架的 Logger
 			// log.Printf("prometheus: http server error: %v", err)
 		}
-	}()
+		return struct{}{}, nil
+	})
 
 	return nil
 }

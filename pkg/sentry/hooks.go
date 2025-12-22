@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/getsentry/sentry-go"
+	"github.com/lk2023060901/xdooria/pkg/util/conc"
 )
 
 // EventHook 事件钩子接口
@@ -62,13 +63,15 @@ func (m *hookManager) trigger(event *sentry.Event) {
 
 	// 异步调用钩子，不阻塞事件上报
 	for _, hook := range hooks {
-		go func(h EventHook) {
+		h := hook
+		conc.Go(func() (struct{}, error) {
 			defer func() {
 				if r := recover(); r != nil {
 					// 钩子执行失败不应该影响主流程
 				}
 			}()
 			h.OnCapture(event)
-		}(hook)
+			return struct{}{}, nil
+		})
 	}
 }

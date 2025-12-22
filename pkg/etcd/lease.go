@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/lk2023060901/xdooria/pkg/util/conc"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
@@ -94,19 +95,19 @@ func (l *Lease) GrantWithKeepAlive(ctx context.Context, ttl int64) (LeaseID, fun
 
 	// 启动协程处理续约响应
 	stopCh := make(chan struct{})
-	go func() {
+	conc.Go(func() (struct{}, error) {
 		for {
 			select {
 			case <-stopCh:
-				return
+				return struct{}{}, nil
 			case _, ok := <-keepAliveCh:
 				if !ok {
 					// 续约通道关闭，租约可能已失效
-					return
+					return struct{}{}, nil
 				}
 			}
 		}
-	}()
+	})
 
 	// 返回停止函数
 	stop := func() {
