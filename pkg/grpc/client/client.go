@@ -8,7 +8,6 @@ import (
 	"github.com/lk2023060901/xdooria/pkg/config"
 	"github.com/lk2023060901/xdooria/pkg/grpc/interceptor"
 	"github.com/lk2023060901/xdooria/pkg/logger"
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -17,7 +16,7 @@ import (
 type Client struct {
 	config *Config
 	conn   *grpc.ClientConn
-	logger *logger.Logger
+	logger logger.Logger
 
 	// 选项
 	dialOpts           []grpc.DialOption
@@ -86,8 +85,8 @@ func (c *Client) Dial() error {
 	defer cancel()
 
 	c.logger.Info("dialing gRPC server",
-		zap.String("target", c.config.Target),
-		zap.Duration("timeout", c.config.DialTimeout),
+		"target", c.config.Target,
+		"timeout", c.config.DialTimeout,
 	)
 
 	conn, err := grpc.DialContext(ctx, c.config.Target, dialOpts...)
@@ -99,7 +98,7 @@ func (c *Client) Dial() error {
 	c.connected = true
 
 	c.logger.Info("connected to gRPC server",
-		zap.String("target", c.config.Target),
+		"target", c.config.Target,
 	)
 
 	return nil

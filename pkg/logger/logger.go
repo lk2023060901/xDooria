@@ -1,6 +1,8 @@
+// pkg/logger/logger.go
 package logger
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -9,8 +11,11 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-// Logger 日志记录器
-type Logger struct {
+// 确保 BaseLogger 实现了 Logger 接口
+var _ Logger = (*BaseLogger)(nil)
+
+// BaseLogger 基于 zap 的日志记录器实现
+type BaseLogger struct {
 	*zap.Logger
 	config           *Config
 	name             string
@@ -19,8 +24,8 @@ type Logger struct {
 	contextExtractor ContextFieldExtractor
 }
 
-// New 创建新的 Logger
-func New(cfg *Config, opts ...Option) (*Logger, error) {
+// New 创建新的 BaseLogger
+func New(cfg *Config, opts ...Option) (*BaseLogger, error) {
 	// 使用 MergeConfig 合并默认配置和用户配置
 	// 确保即使用户只传递部分配置，也能正常工作
 	mergedConfig, err := config.MergeConfig(DefaultConfig(), cfg)
@@ -32,11 +37,11 @@ func New(cfg *Config, opts ...Option) (*Logger, error) {
 		return nil, err
 	}
 
-	logger := &Logger{
+	logger := &BaseLogger{
 		config:           mergedConfig,
 		globalFields:     make(map[string]interface{}),
 		hooks:            make([]Hook, 0),
-		contextExtractor: mergedConfig.ContextExtractor, // 使用配置中的提取器
+		contextExtractor: mergedConfig.ContextExtractor,
 	}
 
 	// 应用选项
@@ -61,7 +66,7 @@ func New(cfg *Config, opts ...Option) (*Logger, error) {
 }
 
 // build 构建 zap logger
-func (l *Logger) build() (*zap.Logger, error) {
+func (l *BaseLogger) build() (*zap.Logger, error) {
 	// 创建 encoder config
 	encoderConfig := l.buildEncoderConfig()
 
@@ -154,7 +159,7 @@ func (l *Logger) build() (*zap.Logger, error) {
 }
 
 // buildEncoderConfig 构建 encoder 配置
-func (l *Logger) buildEncoderConfig() zapcore.EncoderConfig {
+func (l *BaseLogger) buildEncoderConfig() zapcore.EncoderConfig {
 	config := zapcore.EncoderConfig{
 		MessageKey:     "msg",
 		LevelKey:       "level",
@@ -184,7 +189,7 @@ func (l *Logger) buildEncoderConfig() zapcore.EncoderConfig {
 }
 
 // parseLevel 解析日志等级
-func (l *Logger) parseLevel(level Level) zapcore.Level {
+func (l *BaseLogger) parseLevel(level Level) zapcore.Level {
 	switch level {
 	case DebugLevel:
 		return zapcore.DebugLevel
@@ -203,9 +208,53 @@ func (l *Logger) parseLevel(level Level) zapcore.Level {
 	}
 }
 
+// Debug 记录 debug 级别日志
+func (l *BaseLogger) Debug(msg string, keysAndValues ...interface{}) {
+	l.Logger.Debug(msg, l.toZapFields(keysAndValues...)...)
+}
+
+// Info 记录 info 级别日志
+func (l *BaseLogger) Info(msg string, keysAndValues ...interface{}) {
+	l.Logger.Info(msg, l.toZapFields(keysAndValues...)...)
+}
+
+// Warn 记录 warn 级别日志
+func (l *BaseLogger) Warn(msg string, keysAndValues ...interface{}) {
+	l.Logger.Warn(msg, l.toZapFields(keysAndValues...)...)
+}
+
+// Error 记录 error 级别日志
+func (l *BaseLogger) Error(msg string, keysAndValues ...interface{}) {
+	l.Logger.Error(msg, l.toZapFields(keysAndValues...)...)
+}
+
+// DebugContext 记录 debug 级别日志，并从 context 中提取字段
+func (l *BaseLogger) DebugContext(ctx context.Context, msg string, keysAndValues ...interface{}) {
+	fields := append(l.contextExtractor(ctx), l.toZapFields(keysAndValues...)...)
+	l.Logger.Debug(msg, fields...)
+}
+
+// InfoContext 记录 info 级别日志，并从 context 中提取字段
+func (l *BaseLogger) InfoContext(ctx context.Context, msg string, keysAndValues ...interface{}) {
+	fields := append(l.contextExtractor(ctx), l.toZapFields(keysAndValues...)...)
+	l.Logger.Info(msg, fields...)
+}
+
+// WarnContext 记录 warn 级别日志，并从 context 中提取字段
+func (l *BaseLogger) WarnContext(ctx context.Context, msg string, keysAndValues ...interface{}) {
+	fields := append(l.contextExtractor(ctx), l.toZapFields(keysAndValues...)...)
+	l.Logger.Warn(msg, fields...)
+}
+
+// ErrorContext 记录 error 级别日志，并从 context 中提取字段
+func (l *BaseLogger) ErrorContext(ctx context.Context, msg string, keysAndValues ...interface{}) {
+	fields := append(l.contextExtractor(ctx), l.toZapFields(keysAndValues...)...)
+	l.Logger.Error(msg, fields...)
+}
+
 // Named 创建具名 logger
-func (l *Logger) Named(name string) *Logger {
-	newLogger := &Logger{
+func (l *BaseLogger) Named(name string) Logger {
+	newLogger := &BaseLogger{
 		Logger:           l.Logger.Named(name),
 		config:           l.config,
 		name:             name,
@@ -217,21 +266,13 @@ func (l *Logger) Named(name string) *Logger {
 }
 
 // WithFields 添加字段
-func (l *Logger) WithFields(fields ...interface{}) *Logger {
-	if len(fields)%2 != 0 {
+func (l *BaseLogger) WithFields(keysAndValues ...interface{}) Logger {
+	zapFields := l.toZapFields(keysAndValues...)
+	if len(zapFields) == 0 {
 		return l
 	}
 
-	zapFields := make([]zap.Field, 0, len(fields)/2)
-	for i := 0; i < len(fields); i += 2 {
-		key, ok := fields[i].(string)
-		if !ok {
-			continue
-		}
-		zapFields = append(zapFields, zap.Any(key, fields[i+1]))
-	}
-
-	newLogger := &Logger{
+	newLogger := &BaseLogger{
 		Logger:           l.Logger.With(zapFields...),
 		config:           l.config,
 		name:             l.name,
@@ -243,6 +284,63 @@ func (l *Logger) WithFields(fields ...interface{}) *Logger {
 }
 
 // Sync 同步日志
-func (l *Logger) Sync() error {
+func (l *BaseLogger) Sync() error {
 	return l.Logger.Sync()
+}
+
+// toZapFields 将 key-value 对转换为 zap.Field
+func (l *BaseLogger) toZapFields(keysAndValues ...interface{}) []zap.Field {
+	if len(keysAndValues) == 0 {
+		return nil
+	}
+
+	// 如果第一个参数就是 zap.Field，直接返回
+	if len(keysAndValues) > 0 {
+		if _, ok := keysAndValues[0].(zap.Field); ok {
+			fields := make([]zap.Field, 0, len(keysAndValues))
+			for _, v := range keysAndValues {
+				if f, ok := v.(zap.Field); ok {
+					fields = append(fields, f)
+				}
+			}
+			return fields
+		}
+	}
+
+	// key-value 对形式
+	if len(keysAndValues)%2 != 0 {
+		return nil
+	}
+
+	fields := make([]zap.Field, 0, len(keysAndValues)/2)
+	for i := 0; i < len(keysAndValues); i += 2 {
+		key, ok := keysAndValues[i].(string)
+		if !ok {
+			continue
+		}
+		fields = append(fields, zap.Any(key, keysAndValues[i+1]))
+	}
+	return fields
+}
+
+// Panic 记录 panic 级别日志
+func (l *BaseLogger) Panic(msg string, fields ...zap.Field) {
+	l.Logger.Panic(msg, fields...)
+}
+
+// Fatal 记录 fatal 级别日志
+func (l *BaseLogger) Fatal(msg string, fields ...zap.Field) {
+	l.Logger.Fatal(msg, fields...)
+}
+
+// PanicContext 记录 panic 级别日志，并从 context 中提取字段
+func (l *BaseLogger) PanicContext(ctx context.Context, msg string, fields ...zap.Field) {
+	fields = append(l.contextExtractor(ctx), fields...)
+	l.Logger.Panic(msg, fields...)
+}
+
+// FatalContext 记录 fatal 级别日志，并从 context 中提取字段
+func (l *BaseLogger) FatalContext(ctx context.Context, msg string, fields ...zap.Field) {
+	fields = append(l.contextExtractor(ctx), fields...)
+	l.Logger.Fatal(msg, fields...)
 }

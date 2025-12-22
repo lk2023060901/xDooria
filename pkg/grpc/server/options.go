@@ -10,7 +10,7 @@ import (
 type Option func(*Server)
 
 // WithLogger 设置自定义 logger
-func WithLogger(l *logger.Logger) Option {
+func WithLogger(l logger.Logger) Option {
 	return func(s *Server) {
 		s.logger = l
 	}

@@ -15,7 +15,7 @@ func main() {
 
 	// 示例 2: 通过 Config 设置提取器
 	log2, _ := logger.New(&logger.Config{
-		Level:      logger.InfoLevel,
+		Level:       logger.InfoLevel,
 		Development: true, // 彩色输出
 		ContextExtractor: func(ctx context.Context) []zap.Field {
 			fields := make([]zap.Field, 0)
@@ -55,12 +55,12 @@ func main() {
 	ctx = context.WithValue(ctx, "trace_id", "trace-001")
 	ctx = context.WithValue(ctx, "request_id", "req-002")
 	ctx = context.WithValue(ctx, "client_ip", "192.168.1.100")
-	log3.InfoContext(ctx, "通过 Option 提取字段", zap.String("action", "login"))
+	log3.InfoContext(ctx, "通过 Option 提取字段", "action", "login")
 
 	// 示例 4: 全局 logger 使用 Context
 	// 先初始化全局 logger 带提取器
 	logger.InitDefault(&logger.Config{
-		Level:      logger.InfoLevel,
+		Level:       logger.InfoLevel,
 		Development: true,
 		ContextExtractor: func(ctx context.Context) []zap.Field {
 			fields := make([]zap.Field, 0)
@@ -72,19 +72,19 @@ func main() {
 	})
 
 	ctx = context.WithValue(context.Background(), "trace_id", "global-trace")
-	logger.InfoContext(ctx, "全局 logger 使用 Context")
+	logger.Default().InfoContext(ctx, "全局 logger 使用 Context")
 
 	// 示例 5: 混合使用 Context 字段和手动字段
 	ctx = context.WithValue(context.Background(), "trace_id", "mixed-trace")
-	logger.InfoContext(ctx, "混合字段",
-		zap.String("method", "POST"),
-		zap.Int("status", 200),
+	logger.Default().InfoContext(ctx, "混合字段",
+		"method", "POST",
+		"status", 200,
 	)
 
 	// 示例 6: 测试所有日志级别的 Context 方法
 	ctx = context.WithValue(context.Background(), "trace_id", "level-test")
-	logger.DebugContext(ctx, "Debug 级别")
-	logger.InfoContext(ctx, "Info 级别")
-	logger.WarnContext(ctx, "Warn 级别")
-	logger.ErrorContext(ctx, "Error 级别")
+	logger.Default().DebugContext(ctx, "Debug 级别")
+	logger.Default().InfoContext(ctx, "Info 级别")
+	logger.Default().WarnContext(ctx, "Warn 级别")
+	logger.Default().ErrorContext(ctx, "Error 级别")
 }

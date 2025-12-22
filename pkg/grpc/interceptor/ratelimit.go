@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/lk2023060901/xdooria/pkg/logger"
-	"go.uber.org/zap"
 	"golang.org/x/time/rate"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -44,14 +43,14 @@ func DefaultRateLimitConfig() *RateLimitConfig {
 // RateLimiter 限流器
 type RateLimiter struct {
 	cfg      *RateLimitConfig
-	logger   *logger.Logger
+	logger   logger.Logger
 	global   *rate.Limiter
 	limiters map[string]*rate.Limiter
 	mu       sync.RWMutex
 }
 
 // NewRateLimiter 创建限流器
-func NewRateLimiter(logger *logger.Logger, cfg *RateLimitConfig) *RateLimiter {
+func NewRateLimiter(l logger.Logger, cfg *RateLimitConfig) *RateLimiter {
 	if cfg == nil {
 		cfg = DefaultRateLimitConfig()
 	}
@@ -63,7 +62,7 @@ func NewRateLimiter(logger *logger.Logger, cfg *RateLimitConfig) *RateLimiter {
 
 	rl := &RateLimiter{
 		cfg:    cfg,
-		logger: logger,
+		logger: l,
 	}
 
 	// 全局限流器
@@ -136,7 +135,7 @@ func ServerRateLimitInterceptor(limiter *RateLimiter) grpc.UnaryServerIntercepto
 		if !limiter.Allow(info.FullMethod) {
 			if limiter.cfg.LogRateLimits {
 				limiter.logger.Warn("gRPC request rate limited",
-					zap.String("grpc.method", info.FullMethod),
+					"grpc.method", info.FullMethod,
 				)
 			}
 			return nil, status.Error(codes.ResourceExhausted, "rate limit exceeded")
@@ -152,7 +151,7 @@ func StreamServerRateLimitInterceptor(limiter *RateLimiter) grpc.StreamServerInt
 		if !limiter.Allow(info.FullMethod) {
 			if limiter.cfg.LogRateLimits {
 				limiter.logger.Warn("gRPC stream rate limited",
-					zap.String("grpc.method", info.FullMethod),
+					"grpc.method", info.FullMethod,
 				)
 			}
 			return status.Error(codes.ResourceExhausted, "rate limit exceeded")
@@ -169,8 +168,8 @@ func ServerRateLimitWithWaitInterceptor(limiter *RateLimiter) grpc.UnaryServerIn
 		if err := limiter.Wait(ctx, info.FullMethod); err != nil {
 			if limiter.cfg.LogRateLimits {
 				limiter.logger.Warn("gRPC request rate limit wait failed",
-					zap.String("grpc.method", info.FullMethod),
-					zap.Error(err),
+					"grpc.method", info.FullMethod,
+					"error", err,
 				)
 			}
 			return nil, status.Error(codes.ResourceExhausted, "rate limit wait failed")
@@ -190,24 +189,24 @@ type MethodRateLimitConfig struct {
 type MethodRateLimiter struct {
 	limiters map[string]*RateLimiter
 	default_ *RateLimiter
-	logger   *logger.Logger
+	logger   logger.Logger
 }
 
 // NewMethodRateLimiter 创建方法级别限流器
-func NewMethodRateLimiter(logger *logger.Logger, cfg *MethodRateLimitConfig) *MethodRateLimiter {
+func NewMethodRateLimiter(l logger.Logger, cfg *MethodRateLimitConfig) *MethodRateLimiter {
 	mrl := &MethodRateLimiter{
 		limiters: make(map[string]*RateLimiter),
-		logger:   logger,
+		logger:   l,
 	}
 
 	// 创建默认限流器
 	if cfg.Default != nil {
-		mrl.default_ = NewRateLimiter(logger, cfg.Default)
+		mrl.default_ = NewRateLimiter(l, cfg.Default)
 	}
 
 	// 创建方法级别限流器
 	for method, methodCfg := range cfg.Methods {
-		mrl.limiters[method] = NewRateLimiter(logger, methodCfg)
+		mrl.limiters[method] = NewRateLimiter(l, methodCfg)
 	}
 
 	return mrl
@@ -231,7 +230,7 @@ func ServerMethodRateLimitInterceptor(limiter *MethodRateLimiter) grpc.UnaryServ
 		if !methodLimiter.Allow(info.FullMethod) {
 			if methodLimiter.cfg.LogRateLimits {
 				limiter.logger.Warn("gRPC method rate limited",
-					zap.String("grpc.method", info.FullMethod),
+					"grpc.method", info.FullMethod,
 				)
 			}
 			return nil, status.Error(codes.ResourceExhausted, "rate limit exceeded")

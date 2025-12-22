@@ -8,7 +8,6 @@ import (
 	"github.com/lk2023060901/xdooria/pkg/config"
 	"github.com/lk2023060901/xdooria/pkg/logger"
 	"github.com/lk2023060901/xdooria/pkg/util/conc"
-	"go.uber.org/zap"
 	"google.golang.org/grpc/resolver"
 )
 
@@ -20,7 +19,7 @@ const (
 // ResolverBuilder 实现 gRPC resolver.Builder 接口
 type ResolverBuilder struct {
 	config *Config
-	logger *logger.Logger
+	logger logger.Logger
 }
 
 // NewResolverBuilder 创建 gRPC Resolver Builder
@@ -56,7 +55,7 @@ func (b *ResolverBuilder) Build(target resolver.Target, cc resolver.ClientConn, 
 	conc.Go(func() (struct{}, error) {
 		res, err := NewResolver(b.config)
 		if err != nil {
-			r.logger.Error("failed to create etcd resolver", zap.Error(err))
+			r.logger.Error("failed to create etcd resolver", "error", err)
 			r.cc.ReportError(err)
 			close(r.readyCh) // 即使失败也关闭 ready channel
 			return struct{}{}, err
@@ -88,7 +87,7 @@ type grpcResolver struct {
 	cc        resolver.ClientConn
 	config    *Config
 	resolver  *Resolver
-	logger    *logger.Logger
+	logger    logger.Logger
 	closeCh   chan struct{}
 	readyCh   chan struct{} // 用于通知 resolver 已就绪
 	closeOnce sync.Once
@@ -110,8 +109,8 @@ func (r *grpcResolver) resolveAndNotify() {
 	services, err := res.Resolve(ctx, r.target.Endpoint())
 	if err != nil {
 		r.logger.Error("failed to resolve services",
-			zap.String("service", r.target.Endpoint()),
-			zap.Error(err),
+			"service", r.target.Endpoint(),
+			"error", err,
 		)
 		r.cc.ReportError(err)
 		close(r.readyCh)
@@ -129,16 +128,16 @@ func (r *grpcResolver) resolveAndNotify() {
 
 	if err := r.cc.UpdateState(resolver.State{Addresses: addrs}); err != nil {
 		r.logger.Error("failed to update state",
-			zap.String("service", r.target.Endpoint()),
-			zap.Error(err),
+			"service", r.target.Endpoint(),
+			"error", err,
 		)
 		close(r.readyCh)
 		return
 	}
 
 	r.logger.Debug("resolved services",
-		zap.String("service", r.target.Endpoint()),
-		zap.Int("count", len(addrs)),
+		"service", r.target.Endpoint(),
+		"count", len(addrs),
 	)
 
 	// UpdateState 完成后才标记为就绪
@@ -160,8 +159,8 @@ func (r *grpcResolver) ResolveNow(opts resolver.ResolveNowOptions) {
 	services, err := res.Resolve(ctx, r.target.Endpoint())
 	if err != nil {
 		r.logger.Error("failed to resolve services",
-			zap.String("service", r.target.Endpoint()),
-			zap.Error(err),
+			"service", r.target.Endpoint(),
+			"error", err,
 		)
 		r.cc.ReportError(err)
 		return
@@ -178,14 +177,14 @@ func (r *grpcResolver) ResolveNow(opts resolver.ResolveNowOptions) {
 
 	if err := r.cc.UpdateState(resolver.State{Addresses: addrs}); err != nil {
 		r.logger.Error("failed to update state",
-			zap.String("service", r.target.Endpoint()),
-			zap.Error(err),
+			"service", r.target.Endpoint(),
+			"error", err,
 		)
 	}
 
 	r.logger.Debug("resolved services",
-		zap.String("service", r.target.Endpoint()),
-		zap.Int("count", len(addrs)),
+		"service", r.target.Endpoint(),
+		"count", len(addrs),
 	)
 }
 
@@ -222,8 +221,8 @@ func (r *grpcResolver) watch() {
 	watchCh, err := res.Watch(ctx, serviceName)
 	if err != nil {
 		r.logger.Error("failed to watch services",
-			zap.String("service", serviceName),
-			zap.Error(err),
+			"service", serviceName,
+			"error", err,
 		)
 		return
 	}
@@ -237,7 +236,7 @@ func (r *grpcResolver) watch() {
 				// watch channel 关闭通常是由于 context 取消或 etcd 连接问题
 				// 这是正常的清理流程，使用 Debug 级别而非 Warn
 				r.logger.Debug("watch channel closed",
-					zap.String("service", serviceName),
+					"service", serviceName,
 				)
 				return
 			}
@@ -253,14 +252,14 @@ func (r *grpcResolver) watch() {
 
 			if err := r.cc.UpdateState(resolver.State{Addresses: addrs}); err != nil {
 				r.logger.Error("failed to update state on watch",
-					zap.String("service", serviceName),
-					zap.Error(err),
+					"service", serviceName,
+					"error", err,
 				)
 			}
 
 			r.logger.Debug("service list updated from watch",
-				zap.String("service", serviceName),
-				zap.Int("count", len(addrs)),
+				"service", serviceName,
+				"count", len(addrs),
 			)
 		}
 	}
@@ -285,6 +284,6 @@ func RegisterBuilder(cfg *Config) error {
 	}
 
 	resolver.Register(builder)
-	logger.Default().Info("etcd resolver builder registered", zap.String("scheme", Scheme))
+	logger.Default().Info("etcd resolver builder registered", "scheme", Scheme)
 	return nil
 }

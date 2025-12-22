@@ -11,7 +11,6 @@ import (
 	"github.com/lk2023060901/xdooria/pkg/logger"
 	"github.com/lk2023060901/xdooria/pkg/registry"
 	"github.com/lk2023060901/xdooria/pkg/util/conc"
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -22,7 +21,7 @@ import (
 type Server struct {
 	config *Config
 	server *grpc.Server
-	logger *logger.Logger
+	logger logger.Logger
 
 	// 选项
 	grpcOpts           []grpc.ServerOption
@@ -118,9 +117,9 @@ func (s *Server) Start() error {
 	s.started = true
 
 	s.logger.Info("gRPC server starting",
-		zap.String("name", s.config.Name),
-		zap.String("network", s.config.Network),
-		zap.String("address", listener.Addr().String()),
+		"name", s.config.Name,
+		"network", s.config.Network,
+		"address", listener.Addr().String(),
 	)
 
 	// 使用 conc.Go 启动 Server（而非原始 goroutine）
@@ -150,7 +149,7 @@ func (s *Server) Stop() error {
 
 	// 取消服务注册
 	if err := s.deregisterService(); err != nil {
-		s.logger.Warn("failed to deregister service", zap.Error(err))
+		s.logger.Warn("failed to deregister service", "error", err)
 	}
 
 	// 立即停止
@@ -159,7 +158,7 @@ func (s *Server) Stop() error {
 	// 检查 Serve 是否有错误
 	if s.serveFuture != nil {
 		if err := s.serveFuture.Err(); err != nil {
-			s.logger.Warn("serve ended with error", zap.Error(err))
+			s.logger.Warn("serve ended with error", "error", err)
 		}
 	}
 
@@ -185,7 +184,7 @@ func (s *Server) GracefulStop() error {
 
 	// 取消服务注册
 	if err := s.deregisterService(); err != nil {
-		s.logger.Warn("failed to deregister service", zap.Error(err))
+		s.logger.Warn("failed to deregister service", "error", err)
 	}
 
 	// 使用 conc.Go 优雅停止（带超时控制）
@@ -205,7 +204,7 @@ func (s *Server) GracefulStop() error {
 	// 检查 Serve 是否有错误
 	if s.serveFuture != nil {
 		if err := s.serveFuture.Err(); err != nil {
-			s.logger.Warn("serve ended with error", zap.Error(err))
+			s.logger.Warn("serve ended with error", "error", err)
 		}
 	}
 

@@ -3,12 +3,12 @@ package main
 import (
 	"context"
 	"flag"
+	"os"
 	"time"
 
 	"github.com/lk2023060901/xdooria/examples/grpc/proto/helloworld"
 	"github.com/lk2023060901/xdooria/pkg/logger"
 	registryetcd "github.com/lk2023060901/xdooria/pkg/registry/etcd"
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
 
@@ -24,7 +24,8 @@ func main() {
 	if err := registryetcd.RegisterBuilder(&registryetcd.Config{
 		Endpoints: []string{"127.0.0.1:2379"},
 	}); err != nil {
-		logger.Default().Fatal("failed to register resolver builder", zap.Error(err))
+		logger.Default().Error("failed to register resolver builder", "error", err)
+		os.Exit(1)
 	}
 
 	logger.Default().Info("etcd resolver registered successfully")
@@ -48,7 +49,8 @@ func main() {
 	}
 
 	if err != nil {
-		logger.Default().Fatal("failed to dial service", zap.Error(err))
+		logger.Default().Error("failed to dial service", "error", err)
+		os.Exit(1)
 	}
 	defer conn.Close()
 
@@ -70,13 +72,13 @@ func main() {
 
 		if err != nil {
 			logger.Default().Error("failed to call SayHello",
-				zap.Int("attempt", i+1),
-				zap.Error(err),
+				"attempt", i+1,
+				"error", err,
 			)
 		} else {
 			logger.Default().Info("received response",
-				zap.Int("attempt", i+1),
-				zap.String("message", resp.Message),
+				"attempt", i+1,
+				"message", resp.Message,
 			)
 		}
 

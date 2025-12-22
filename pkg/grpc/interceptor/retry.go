@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/lk2023060901/xdooria/pkg/logger"
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -53,7 +52,7 @@ func DefaultRetryConfig() *RetryConfig {
 }
 
 // ClientRetryInterceptor 客户端重试拦截器
-func ClientRetryInterceptor(logger *logger.Logger, cfg *RetryConfig) grpc.UnaryClientInterceptor {
+func ClientRetryInterceptor(l logger.Logger, cfg *RetryConfig) grpc.UnaryClientInterceptor {
 	if cfg == nil {
 		cfg = DefaultRetryConfig()
 	}
@@ -73,9 +72,9 @@ func ClientRetryInterceptor(logger *logger.Logger, cfg *RetryConfig) grpc.UnaryC
 			// 成功则返回
 			if err == nil {
 				if attempt > 1 && cfg.LogRetries {
-					logger.Info("gRPC retry succeeded",
-						zap.String("grpc.method", method),
-						zap.Int("attempt", attempt),
+					l.Info("gRPC retry succeeded",
+						"grpc.method", method,
+						"attempt", attempt,
 					)
 				}
 				return nil
@@ -86,10 +85,10 @@ func ClientRetryInterceptor(logger *logger.Logger, cfg *RetryConfig) grpc.UnaryC
 			// 检查是否可重试
 			if !isRetryable(err, cfg.RetryableCodes) {
 				if cfg.LogRetries {
-					logger.Debug("gRPC error not retryable",
-						zap.String("grpc.method", method),
-						zap.String("grpc.code", status.Code(err).String()),
-						zap.Error(err),
+					l.Debug("gRPC error not retryable",
+						"grpc.method", method,
+						"grpc.code", status.Code(err).String(),
+						"error", err,
 					)
 				}
 				return err
@@ -98,10 +97,10 @@ func ClientRetryInterceptor(logger *logger.Logger, cfg *RetryConfig) grpc.UnaryC
 			// 最后一次尝试失败
 			if attempt == cfg.MaxAttempts {
 				if cfg.LogRetries {
-					logger.Warn("gRPC retry exhausted",
-						zap.String("grpc.method", method),
-						zap.Int("attempts", attempt),
-						zap.Error(err),
+					l.Warn("gRPC retry exhausted",
+						"grpc.method", method,
+						"attempts", attempt,
+						"error", err,
 					)
 				}
 				return err
@@ -114,12 +113,12 @@ func ClientRetryInterceptor(logger *logger.Logger, cfg *RetryConfig) grpc.UnaryC
 
 			// 记录重试日志
 			if cfg.LogRetries {
-				logger.Info("gRPC retrying request",
-					zap.String("grpc.method", method),
-					zap.Int("attempt", attempt),
-					zap.Duration("backoff", backoff),
-					zap.String("grpc.code", status.Code(err).String()),
-					zap.Error(err),
+				l.Info("gRPC retrying request",
+					"grpc.method", method,
+					"attempt", attempt,
+					"backoff", backoff,
+					"grpc.code", status.Code(err).String(),
+					"error", err,
 				)
 			}
 

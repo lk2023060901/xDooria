@@ -1,23 +1,22 @@
+// pkg/logger/default.go
 package logger
 
 import (
-	"context"
 	"os"
 	"sync"
 
 	"github.com/lk2023060901/xdooria/pkg/config"
-	"go.uber.org/zap"
 )
 
 var (
-	defaultLogger     *Logger
+	defaultLogger     Logger
 	defaultLoggerOnce sync.Once
 	defaultLoggerMu   sync.RWMutex
 )
 
 // InitDefault 初始化默认 logger
-func InitDefault(config *Config, opts ...Option) error {
-	logger, err := New(config, opts...)
+func InitDefault(cfg *Config, opts ...Option) error {
+	logger, err := New(cfg, opts...)
 	if err != nil {
 		return err
 	}
@@ -63,14 +62,14 @@ func InitDefaultFromEnv() error {
 }
 
 // SetDefault 设置默认 logger
-func SetDefault(logger *Logger) {
+func SetDefault(logger Logger) {
 	defaultLoggerMu.Lock()
 	defer defaultLoggerMu.Unlock()
 	defaultLogger = logger
 }
 
 // Default 获取默认 logger
-func Default() *Logger {
+func Default() Logger {
 	defaultLoggerOnce.Do(func() {
 		// 懒加载：使用默认配置 (仅控制台输出)
 		if defaultLogger == nil {
@@ -87,6 +86,11 @@ func Default() *Logger {
 	return defaultLogger
 }
 
+// Noop 返回空日志记录器
+func Noop() Logger {
+	return NewNoop()
+}
+
 // SetGlobalFields 设置全局字段
 func SetGlobalFields(fields ...interface{}) {
 	logger := Default()
@@ -96,65 +100,30 @@ func SetGlobalFields(fields ...interface{}) {
 
 // --- 便捷函数 (使用默认 logger) ---
 
-func Debug(msg string, fields ...zap.Field) {
-	Default().Debug(msg, fields...)
+func Debug(msg string, keysAndValues ...interface{}) {
+	Default().Debug(msg, keysAndValues...)
 }
 
-func Info(msg string, fields ...zap.Field) {
-	Default().Info(msg, fields...)
+func Info(msg string, keysAndValues ...interface{}) {
+	Default().Info(msg, keysAndValues...)
 }
 
-func Warn(msg string, fields ...zap.Field) {
-	Default().Warn(msg, fields...)
+func Warn(msg string, keysAndValues ...interface{}) {
+	Default().Warn(msg, keysAndValues...)
 }
 
-func Error(msg string, fields ...zap.Field) {
-	Default().Error(msg, fields...)
+func Error(msg string, keysAndValues ...interface{}) {
+	Default().Error(msg, keysAndValues...)
 }
 
-func Panic(msg string, fields ...zap.Field) {
-	Default().Panic(msg, fields...)
-}
-
-func Fatal(msg string, fields ...zap.Field) {
-	Default().Fatal(msg, fields...)
-}
-
-func Named(name string) *Logger {
+func Named(name string) Logger {
 	return Default().Named(name)
 }
 
-func WithFields(fields ...interface{}) *Logger {
+func WithFields(fields ...interface{}) Logger {
 	return Default().WithFields(fields...)
 }
 
 func Sync() error {
 	return Default().Sync()
 }
-
-// --- Context 版本的便捷函数 ---
-
-func DebugContext(ctx context.Context, msg string, fields ...zap.Field) {
-	Default().DebugContext(ctx, msg, fields...)
-}
-
-func InfoContext(ctx context.Context, msg string, fields ...zap.Field) {
-	Default().InfoContext(ctx, msg, fields...)
-}
-
-func WarnContext(ctx context.Context, msg string, fields ...zap.Field) {
-	Default().WarnContext(ctx, msg, fields...)
-}
-
-func ErrorContext(ctx context.Context, msg string, fields ...zap.Field) {
-	Default().ErrorContext(ctx, msg, fields...)
-}
-
-func PanicContext(ctx context.Context, msg string, fields ...zap.Field) {
-	Default().PanicContext(ctx, msg, fields...)
-}
-
-func FatalContext(ctx context.Context, msg string, fields ...zap.Field) {
-	Default().FatalContext(ctx, msg, fields...)
-}
-

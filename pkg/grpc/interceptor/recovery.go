@@ -6,7 +6,6 @@ import (
 	"runtime/debug"
 
 	"github.com/lk2023060901/xdooria/pkg/logger"
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -30,7 +29,7 @@ func DefaultRecoveryConfig() *RecoveryConfig {
 }
 
 // ServerRecoveryInterceptor Server 端 Recovery 拦截器（Unary）
-func ServerRecoveryInterceptor(logger *logger.Logger, cfg *RecoveryConfig) grpc.UnaryServerInterceptor {
+func ServerRecoveryInterceptor(l logger.Logger, cfg *RecoveryConfig) grpc.UnaryServerInterceptor {
 	if cfg == nil {
 		cfg = DefaultRecoveryConfig()
 	}
@@ -43,10 +42,10 @@ func ServerRecoveryInterceptor(logger *logger.Logger, cfg *RecoveryConfig) grpc.
 		defer func() {
 			if p := recover(); p != nil {
 				// 记录 panic 日志
-				logger.Error("gRPC panic recovered",
-					zap.String("grpc.method", info.FullMethod),
-					zap.Any("panic", p),
-					zap.String("stack", string(debug.Stack())),
+				l.Error("gRPC panic recovered",
+					"grpc.method", info.FullMethod,
+					"panic", p,
+					"stack", string(debug.Stack()),
 				)
 
 				// 使用自定义处理或默认处理
@@ -63,7 +62,7 @@ func ServerRecoveryInterceptor(logger *logger.Logger, cfg *RecoveryConfig) grpc.
 }
 
 // StreamServerRecoveryInterceptor Server 端 Recovery 拦截器（Stream）
-func StreamServerRecoveryInterceptor(logger *logger.Logger, cfg *RecoveryConfig) grpc.StreamServerInterceptor {
+func StreamServerRecoveryInterceptor(l logger.Logger, cfg *RecoveryConfig) grpc.StreamServerInterceptor {
 	if cfg == nil {
 		cfg = DefaultRecoveryConfig()
 	}
@@ -76,10 +75,10 @@ func StreamServerRecoveryInterceptor(logger *logger.Logger, cfg *RecoveryConfig)
 		defer func() {
 			if p := recover(); p != nil {
 				// 记录 panic 日志
-				logger.Error("gRPC stream panic recovered",
-					zap.String("grpc.method", info.FullMethod),
-					zap.Any("panic", p),
-					zap.String("stack", string(debug.Stack())),
+				l.Error("gRPC stream panic recovered",
+					"grpc.method", info.FullMethod,
+					"panic", p,
+					"stack", string(debug.Stack()),
 				)
 
 				// 使用自定义处理或默认处理
@@ -96,7 +95,7 @@ func StreamServerRecoveryInterceptor(logger *logger.Logger, cfg *RecoveryConfig)
 }
 
 // ClientRecoveryInterceptor Client 端 Recovery 拦截器（可选）
-func ClientRecoveryInterceptor(logger *logger.Logger, cfg *RecoveryConfig) grpc.UnaryClientInterceptor {
+func ClientRecoveryInterceptor(l logger.Logger, cfg *RecoveryConfig) grpc.UnaryClientInterceptor {
 	if cfg == nil {
 		cfg = DefaultRecoveryConfig()
 	}
@@ -109,11 +108,11 @@ func ClientRecoveryInterceptor(logger *logger.Logger, cfg *RecoveryConfig) grpc.
 		defer func() {
 			if p := recover(); p != nil {
 				// 记录客户端 panic
-				logger.Error("gRPC client panic recovered",
-					zap.String("grpc.method", method),
-					zap.String("grpc.target", cc.Target()),
-					zap.Any("panic", p),
-					zap.String("stack", string(debug.Stack())),
+				l.Error("gRPC client panic recovered",
+					"grpc.method", method,
+					"grpc.target", cc.Target(),
+					"panic", p,
+					"stack", string(debug.Stack()),
 				)
 
 				err = fmt.Errorf("client panic: %v", p)

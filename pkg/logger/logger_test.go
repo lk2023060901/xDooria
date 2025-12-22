@@ -86,7 +86,7 @@ func TestLoggerLevels(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		logFunc  func(string, ...zap.Field)
+		logFunc  func(string, ...interface{})
 		message  string
 		wantLog  bool
 		expected string

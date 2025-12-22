@@ -9,7 +9,6 @@ import (
 	"github.com/lk2023060901/xdooria/pkg/config"
 	"github.com/lk2023060901/xdooria/pkg/logger"
 	"github.com/lk2023060901/xdooria/pkg/util/conc"
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 )
@@ -55,7 +54,7 @@ type pooledConn struct {
 type Pool struct {
 	config    *PoolConfig
 	clientCfg *Config
-	logger    *logger.Logger
+	logger    logger.Logger
 
 	// 连接池
 	conns    []*pooledConn
@@ -135,8 +134,8 @@ func NewPool(cfg *Config, poolCfg *PoolConfig, opts ...Option) (*Pool, error) {
 // init 初始化连接池
 func (p *Pool) init() error {
 	p.logger.Info("initializing connection pool",
-		zap.String("target", p.clientCfg.Target),
-		zap.Int("size", p.config.Size),
+		"target", p.clientCfg.Target,
+		"size", p.config.Size,
 	)
 
 	for i := 0; i < p.config.Size; i++ {
@@ -158,7 +157,7 @@ func (p *Pool) init() error {
 	}
 
 	p.logger.Info("connection pool initialized",
-		zap.Int("size", len(p.conns)),
+		"size", len(p.conns),
 	)
 
 	// 更新初始指标
@@ -233,7 +232,7 @@ func (p *Pool) Get(ctx context.Context) (*grpc.ClientConn, error) {
 		// 检查连接状态
 		if !p.isConnHealthy(pc.conn) {
 			p.logger.Warn("connection unhealthy, recreating",
-				zap.String("target", p.clientCfg.Target),
+				"target", p.clientCfg.Target,
 			)
 
 			// 尝试重新创建连接
@@ -335,7 +334,7 @@ func (p *Pool) closeAll() error {
 	}
 
 	p.logger.Info("connection pool closed",
-		zap.Int("connections", len(p.conns)),
+		"connections", len(p.conns),
 	)
 
 	if len(errs) > 0 {
@@ -355,7 +354,7 @@ func (p *Pool) isConnHealthy(conn *grpc.ClientConn) bool {
 func (p *Pool) recreateConn(pc *pooledConn) error {
 	// 关闭旧连接
 	if err := pc.conn.Close(); err != nil {
-		p.logger.Warn("failed to close old connection", zap.Error(err))
+		p.logger.Warn("failed to close old connection", "error", err)
 	}
 
 	// 创建新连接
@@ -374,7 +373,7 @@ func (p *Pool) recreateConn(pc *pooledConn) error {
 	p.metrics.RecordConnectionRecreation()
 
 	p.logger.Info("connection recreated",
-		zap.String("target", p.clientCfg.Target),
+		"target", p.clientCfg.Target,
 	)
 
 	return nil
@@ -398,7 +397,7 @@ func (p *Pool) startHealthCheck() {
 	})
 
 	p.logger.Info("health check started",
-		zap.Duration("interval", p.config.HealthCheckInterval),
+		"interval", p.config.HealthCheckInterval,
 	)
 }
 
@@ -428,11 +427,11 @@ func (p *Pool) performHealthCheck() {
 			idleTime := time.Since(lastUsed)
 			if idleTime > p.config.MaxIdleTime {
 				p.logger.Debug("connection idle too long, closing",
-					zap.Duration("idle_time", idleTime),
+					"idle_time", idleTime,
 				)
 				// 重新创建连接
 				if err := p.recreateConn(pc); err != nil {
-					p.logger.Error("failed to recreate idle connection", zap.Error(err))
+					p.logger.Error("failed to recreate idle connection", "error", err)
 				}
 				continue
 			}
@@ -442,7 +441,7 @@ func (p *Pool) performHealthCheck() {
 		if !p.isConnHealthy(conn) {
 			p.logger.Warn("unhealthy connection detected during health check")
 			if err := p.recreateConn(pc); err != nil {
-				p.logger.Error("failed to recreate unhealthy connection", zap.Error(err))
+				p.logger.Error("failed to recreate unhealthy connection", "error", err)
 			}
 		}
 	}

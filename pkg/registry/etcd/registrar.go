@@ -10,7 +10,6 @@ import (
 	"github.com/lk2023060901/xdooria/pkg/logger"
 	"github.com/lk2023060901/xdooria/pkg/registry"
 	"github.com/lk2023060901/xdooria/pkg/util/conc"
-	"go.uber.org/zap"
 )
 
 // Registrar 基于 etcd 的服务注册器
@@ -19,7 +18,7 @@ type Registrar struct {
 	config      *Config
 	serviceInfo *registry.ServiceInfo
 	leaseID     int64
-	logger      *logger.Logger
+	logger      logger.Logger
 	pool        *conc.Pool[struct{}]
 	stopCh      chan struct{}
 }
@@ -78,9 +77,9 @@ func (r *Registrar) Register(ctx context.Context, info *registry.ServiceInfo) er
 	}
 
 	r.logger.Info("service registered",
-		zap.String("service", info.ServiceName),
-		zap.String("address", info.Address),
-		zap.Int64("lease_id", r.leaseID),
+		"service", info.ServiceName,
+		"address", info.Address,
+		"lease_id", r.leaseID,
 	)
 
 	// 启动心跳保活（使用 conc.Pool）
@@ -108,13 +107,13 @@ func (r *Registrar) Deregister(ctx context.Context) error {
 	// 撤销租约
 	if r.leaseID != 0 {
 		if err := r.client.Lease().Revoke(ctx, xdooriaetcd.LeaseID(r.leaseID)); err != nil {
-			r.logger.Warn("failed to revoke lease", zap.Error(err))
+			r.logger.Warn("failed to revoke lease", "error", err)
 		}
 	}
 
 	r.logger.Info("service deregistered",
-		zap.String("service", r.serviceInfo.ServiceName),
-		zap.String("address", r.serviceInfo.Address),
+		"service", r.serviceInfo.ServiceName,
+		"address", r.serviceInfo.Address,
 	)
 
 	r.pool.Release()
@@ -140,8 +139,8 @@ func (r *Registrar) UpdateMetadata(ctx context.Context, metadata map[string]stri
 	}
 
 	r.logger.Info("metadata updated",
-		zap.String("service", r.serviceInfo.ServiceName),
-		zap.Any("metadata", metadata),
+		"service", r.serviceInfo.ServiceName,
+		"metadata", metadata,
 	)
 
 	return nil
@@ -157,7 +156,7 @@ func (r *Registrar) keepAlive() {
 	ctx := context.Background()
 	ch, err := r.client.Lease().KeepAlive(ctx, xdooriaetcd.LeaseID(r.leaseID))
 	if err != nil {
-		r.logger.Error("failed to keep alive", zap.Error(err))
+		r.logger.Error("failed to keep alive", "error", err)
 		r.reRegister()
 		return
 	}
@@ -188,7 +187,7 @@ func (r *Registrar) reRegister() {
 	// 创建新的租约
 	leaseID, err := r.client.Lease().Grant(ctx, int64(r.config.TTL.Seconds()))
 	if err != nil {
-		r.logger.Error("failed to grant lease for re-register", zap.Error(err))
+		r.logger.Error("failed to grant lease for re-register", "error", err)
 		return
 	}
 	r.leaseID = int64(leaseID)
@@ -196,21 +195,21 @@ func (r *Registrar) reRegister() {
 	// 序列化服务信息
 	value, err := json.Marshal(r.serviceInfo)
 	if err != nil {
-		r.logger.Error("failed to marshal service info for re-register", zap.Error(err))
+		r.logger.Error("failed to marshal service info for re-register", "error", err)
 		return
 	}
 
 	// 重新注册服务
 	key := r.buildKey(r.serviceInfo.ServiceName, r.serviceInfo.Address)
 	if err := r.client.KV().PutWithLease(ctx, key, string(value), leaseID); err != nil {
-		r.logger.Error("failed to re-register service", zap.Error(err))
+		r.logger.Error("failed to re-register service", "error", err)
 		return
 	}
 
 	r.logger.Info("service re-registered successfully",
-		zap.String("service", r.serviceInfo.ServiceName),
-		zap.String("address", r.serviceInfo.Address),
-		zap.Int64("new_lease_id", r.leaseID),
+		"service", r.serviceInfo.ServiceName,
+		"address", r.serviceInfo.Address,
+		"new_lease_id", r.leaseID,
 	)
 
 	// 重新启动心跳保活

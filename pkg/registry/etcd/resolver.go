@@ -10,14 +10,13 @@ import (
 	"github.com/lk2023060901/xdooria/pkg/logger"
 	"github.com/lk2023060901/xdooria/pkg/registry"
 	"github.com/lk2023060901/xdooria/pkg/util/conc"
-	"go.uber.org/zap"
 )
 
 // Resolver 基于 etcd 的服务发现器
 type Resolver struct {
 	client *xdooriaetcd.Client
 	config *Config
-	logger *logger.Logger
+	logger logger.Logger
 	pool   *conc.Pool[struct{}]
 }
 
@@ -68,8 +67,8 @@ func (r *Resolver) Resolve(ctx context.Context, serviceName string) ([]*registry
 		var info registry.ServiceInfo
 		if err := json.Unmarshal([]byte(kv.Value), &info); err != nil {
 			r.logger.Warn("failed to unmarshal service info",
-				zap.String("key", kv.Key),
-				zap.Error(err),
+				"key", kv.Key,
+				"error", err,
 			)
 			continue
 		}
@@ -77,8 +76,8 @@ func (r *Resolver) Resolve(ctx context.Context, serviceName string) ([]*registry
 	}
 
 	r.logger.Debug("services resolved",
-		zap.String("service", serviceName),
-		zap.Int("count", len(services)),
+		"service", serviceName,
+		"count", len(services),
 	)
 
 	return services, nil
@@ -100,15 +99,15 @@ func (r *Resolver) Watch(ctx context.Context, serviceName string) (<-chan []*reg
 			services, err := r.Resolve(context.Background(), serviceName)
 			if err != nil {
 				r.logger.Error("failed to resolve services on watch event",
-					zap.Error(err),
+					"error", err,
 				)
 				return
 			}
 
 			r.logger.Debug("service list updated",
-				zap.String("service", serviceName),
-				zap.Int("event_type", int(event.Type)),
-				zap.Int("count", len(services)),
+				"service", serviceName,
+				"event_type", int(event.Type),
+				"count", len(services),
 			)
 
 			select {
@@ -118,7 +117,7 @@ func (r *Resolver) Watch(ctx context.Context, serviceName string) (<-chan []*reg
 		})
 
 		if err != nil {
-			r.logger.Error("watch failed", zap.Error(err))
+			r.logger.Error("watch failed", "error", err)
 		}
 
 		return struct{}{}, nil

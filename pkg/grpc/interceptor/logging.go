@@ -8,7 +8,6 @@ import (
 
 	"github.com/lk2023060901/xdooria/pkg/logger"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -60,7 +59,7 @@ func DefaultLoggingConfig() *LoggingConfig {
 }
 
 // ServerLoggingInterceptor Server 端日志拦截器（Unary）
-func ServerLoggingInterceptor(logger *logger.Logger, cfg *LoggingConfig) grpc.UnaryServerInterceptor {
+func ServerLoggingInterceptor(log logger.Logger, cfg *LoggingConfig) grpc.UnaryServerInterceptor {
 	if cfg == nil {
 		cfg = DefaultLoggingConfig()
 	}
@@ -73,31 +72,31 @@ func ServerLoggingInterceptor(logger *logger.Logger, cfg *LoggingConfig) grpc.Un
 		start := time.Now()
 
 		// 构建请求日志字段
-		fields := []zap.Field{
-			zap.String("grpc.method", info.FullMethod),
-			zap.String("grpc.type", "unary"),
+		fields := []interface{}{
+			"grpc.method", info.FullMethod,
+			"grpc.type", "unary",
 		}
 
 		// 提取并记录 trace ID
 		if traceID := extractTraceID(ctx); traceID != "" {
-			fields = append(fields, zap.String("trace_id", traceID))
+			fields = append(fields, "trace_id", traceID)
 		}
 
 		// 记录 peer 信息
 		if cfg.LogPeer {
 			if p, ok := peer.FromContext(ctx); ok {
-				fields = append(fields, zap.String("grpc.peer", p.Addr.String()))
+				fields = append(fields, "grpc.peer", p.Addr.String())
 			}
 		}
 
 		// 记录请求参数
 		if cfg.LogRequest {
 			if reqJSON := marshalPayload(req, cfg); reqJSON != "" {
-				fields = append(fields, zap.String("grpc.request", reqJSON))
+				fields = append(fields, "grpc.request", reqJSON)
 			}
 		}
 
-		logger.Info("gRPC request started", fields...)
+		log.Info("gRPC request started", fields...)
 
 		// 执行处理
 		resp, err := handler(ctx, req)
@@ -106,37 +105,37 @@ func ServerLoggingInterceptor(logger *logger.Logger, cfg *LoggingConfig) grpc.Un
 		duration := time.Since(start)
 		code := status.Code(err)
 
-		fields = []zap.Field{
-			zap.String("grpc.method", info.FullMethod),
-			zap.String("grpc.code", code.String()),
+		fields = []interface{}{
+			"grpc.method", info.FullMethod,
+			"grpc.code", code.String(),
 		}
 
 		// 提取并记录 trace ID
 		if traceID := extractTraceID(ctx); traceID != "" {
-			fields = append(fields, zap.String("trace_id", traceID))
+			fields = append(fields, "trace_id", traceID)
 		}
 
 		if cfg.LogDuration {
-			fields = append(fields, zap.Duration("grpc.duration", duration))
+			fields = append(fields, "grpc.duration", duration)
 		}
 
 		// 记录响应参数
 		if cfg.LogResponse && resp != nil {
 			if respJSON := marshalPayload(resp, cfg); respJSON != "" {
-				fields = append(fields, zap.String("grpc.response", respJSON))
+				fields = append(fields, "grpc.response", respJSON)
 			}
 		}
 
 		// 根据结果选择日志级别
 		if err != nil {
-			fields = append(fields, zap.Error(err))
+			fields = append(fields, "error", err)
 			if code == codes.Internal || code == codes.Unknown {
-				logger.Error("gRPC request failed", fields...)
+				log.Error("gRPC request failed", fields...)
 			} else {
-				logger.Warn("gRPC request failed", fields...)
+				log.Warn("gRPC request failed", fields...)
 			}
 		} else {
-			logger.Info("gRPC request completed", fields...)
+			log.Info("gRPC request completed", fields...)
 		}
 
 		return resp, err
@@ -144,7 +143,7 @@ func ServerLoggingInterceptor(logger *logger.Logger, cfg *LoggingConfig) grpc.Un
 }
 
 // StreamServerLoggingInterceptor Server 端日志拦截器（Stream）
-func StreamServerLoggingInterceptor(logger *logger.Logger, cfg *LoggingConfig) grpc.StreamServerInterceptor {
+func StreamServerLoggingInterceptor(log logger.Logger, cfg *LoggingConfig) grpc.StreamServerInterceptor {
 	if cfg == nil {
 		cfg = DefaultLoggingConfig()
 	}
@@ -158,25 +157,25 @@ func StreamServerLoggingInterceptor(logger *logger.Logger, cfg *LoggingConfig) g
 		ctx := ss.Context()
 
 		// 记录流开始
-		fields := []zap.Field{
-			zap.String("grpc.method", info.FullMethod),
-			zap.String("grpc.type", "stream"),
-			zap.Bool("grpc.is_client_stream", info.IsClientStream),
-			zap.Bool("grpc.is_server_stream", info.IsServerStream),
+		fields := []interface{}{
+			"grpc.method", info.FullMethod,
+			"grpc.type", "stream",
+			"grpc.is_client_stream", info.IsClientStream,
+			"grpc.is_server_stream", info.IsServerStream,
 		}
 
 		// 提取并记录 trace ID
 		if traceID := extractTraceID(ctx); traceID != "" {
-			fields = append(fields, zap.String("trace_id", traceID))
+			fields = append(fields, "trace_id", traceID)
 		}
 
 		if cfg.LogPeer {
 			if p, ok := peer.FromContext(ctx); ok {
-				fields = append(fields, zap.String("grpc.peer", p.Addr.String()))
+				fields = append(fields, "grpc.peer", p.Addr.String())
 			}
 		}
 
-		logger.Info("gRPC stream started", fields...)
+		log.Info("gRPC stream started", fields...)
 
 		// 执行处理
 		err := handler(srv, ss)
@@ -185,25 +184,25 @@ func StreamServerLoggingInterceptor(logger *logger.Logger, cfg *LoggingConfig) g
 		duration := time.Since(start)
 		code := status.Code(err)
 
-		fields = []zap.Field{
-			zap.String("grpc.method", info.FullMethod),
-			zap.String("grpc.code", code.String()),
+		fields = []interface{}{
+			"grpc.method", info.FullMethod,
+			"grpc.code", code.String(),
 		}
 
 		// 提取并记录 trace ID
 		if traceID := extractTraceID(ctx); traceID != "" {
-			fields = append(fields, zap.String("trace_id", traceID))
+			fields = append(fields, "trace_id", traceID)
 		}
 
 		if cfg.LogDuration {
-			fields = append(fields, zap.Duration("grpc.duration", duration))
+			fields = append(fields, "grpc.duration", duration)
 		}
 
 		if err != nil {
-			fields = append(fields, zap.Error(err))
-			logger.Error("gRPC stream failed", fields...)
+			fields = append(fields, "error", err)
+			log.Error("gRPC stream failed", fields...)
 		} else {
-			logger.Info("gRPC stream completed", fields...)
+			log.Info("gRPC stream completed", fields...)
 		}
 
 		return err
@@ -211,7 +210,7 @@ func StreamServerLoggingInterceptor(logger *logger.Logger, cfg *LoggingConfig) g
 }
 
 // ClientLoggingInterceptor Client 端日志拦截器（Unary）
-func ClientLoggingInterceptor(logger *logger.Logger, cfg *LoggingConfig) grpc.UnaryClientInterceptor {
+func ClientLoggingInterceptor(log logger.Logger, cfg *LoggingConfig) grpc.UnaryClientInterceptor {
 	if cfg == nil {
 		cfg = DefaultLoggingConfig()
 	}
@@ -224,23 +223,23 @@ func ClientLoggingInterceptor(logger *logger.Logger, cfg *LoggingConfig) grpc.Un
 		start := time.Now()
 
 		// 记录请求
-		fields := []zap.Field{
-			zap.String("grpc.method", method),
-			zap.String("grpc.target", cc.Target()),
+		fields := []interface{}{
+			"grpc.method", method,
+			"grpc.target", cc.Target(),
 		}
 
 		// 提取并记录 trace ID
 		if traceID := extractTraceID(ctx); traceID != "" {
-			fields = append(fields, zap.String("trace_id", traceID))
+			fields = append(fields, "trace_id", traceID)
 		}
 
 		if cfg.LogRequest {
 			if reqJSON := marshalPayload(req, cfg); reqJSON != "" {
-				fields = append(fields, zap.String("grpc.request", reqJSON))
+				fields = append(fields, "grpc.request", reqJSON)
 			}
 		}
 
-		logger.Info("gRPC client request started", fields...)
+		log.Info("gRPC client request started", fields...)
 
 		// 执行调用
 		err := invoker(ctx, method, req, reply, cc, opts...)
@@ -249,31 +248,31 @@ func ClientLoggingInterceptor(logger *logger.Logger, cfg *LoggingConfig) grpc.Un
 		duration := time.Since(start)
 		code := status.Code(err)
 
-		fields = []zap.Field{
-			zap.String("grpc.method", method),
-			zap.String("grpc.code", code.String()),
+		fields = []interface{}{
+			"grpc.method", method,
+			"grpc.code", code.String(),
 		}
 
 		// 提取并记录 trace ID
 		if traceID := extractTraceID(ctx); traceID != "" {
-			fields = append(fields, zap.String("trace_id", traceID))
+			fields = append(fields, "trace_id", traceID)
 		}
 
 		if cfg.LogDuration {
-			fields = append(fields, zap.Duration("grpc.duration", duration))
+			fields = append(fields, "grpc.duration", duration)
 		}
 
 		if cfg.LogResponse && reply != nil {
 			if respJSON := marshalPayload(reply, cfg); respJSON != "" {
-				fields = append(fields, zap.String("grpc.response", respJSON))
+				fields = append(fields, "grpc.response", respJSON)
 			}
 		}
 
 		if err != nil {
-			fields = append(fields, zap.Error(err))
-			logger.Error("gRPC client request failed", fields...)
+			fields = append(fields, "error", err)
+			log.Error("gRPC client request failed", fields...)
 		} else {
-			logger.Info("gRPC client request completed", fields...)
+			log.Info("gRPC client request completed", fields...)
 		}
 
 		return err

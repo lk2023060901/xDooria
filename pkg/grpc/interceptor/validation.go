@@ -1,12 +1,11 @@
 package interceptor
 
 import (
-	"buf.build/go/protovalidate"
 	"context"
 	"fmt"
 
+	"buf.build/go/protovalidate"
 	"github.com/lk2023060901/xdooria/pkg/logger"
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -37,7 +36,7 @@ func DefaultValidationConfig() *ValidationConfig {
 }
 
 // ServerValidationInterceptor Server 端校验拦截器（Unary）
-func ServerValidationInterceptor(logger *logger.Logger, cfg *ValidationConfig) grpc.UnaryServerInterceptor {
+func ServerValidationInterceptor(l logger.Logger, cfg *ValidationConfig) grpc.UnaryServerInterceptor {
 	if cfg == nil {
 		cfg = DefaultValidationConfig()
 	}
@@ -50,9 +49,9 @@ func ServerValidationInterceptor(logger *logger.Logger, cfg *ValidationConfig) g
 		// 校验请求参数
 		if err := validate(req); err != nil {
 			if cfg.LogValidationErrors {
-				logger.Warn("gRPC request validation failed",
-					zap.String("grpc.method", info.FullMethod),
-					zap.Error(err),
+				l.Warn("gRPC request validation failed",
+					"grpc.method", info.FullMethod,
+					"error", err,
 				)
 			}
 			return nil, status.Error(codes.InvalidArgument, err.Error())
@@ -63,7 +62,7 @@ func ServerValidationInterceptor(logger *logger.Logger, cfg *ValidationConfig) g
 }
 
 // StreamServerValidationInterceptor Server 端校验拦截器（Stream）
-func StreamServerValidationInterceptor(logger *logger.Logger, cfg *ValidationConfig) grpc.StreamServerInterceptor {
+func StreamServerValidationInterceptor(l logger.Logger, cfg *ValidationConfig) grpc.StreamServerInterceptor {
 	if cfg == nil {
 		cfg = DefaultValidationConfig()
 	}
@@ -76,7 +75,7 @@ func StreamServerValidationInterceptor(logger *logger.Logger, cfg *ValidationCon
 		// 对于流式调用，在 RecvMsg 时进行校验
 		wrapped := &validationServerStream{
 			ServerStream: ss,
-			logger:       logger,
+			logger:       l,
 			cfg:          cfg,
 			method:       info.FullMethod,
 		}
@@ -88,7 +87,7 @@ func StreamServerValidationInterceptor(logger *logger.Logger, cfg *ValidationCon
 // validationServerStream 包装 ServerStream 以支持校验
 type validationServerStream struct {
 	grpc.ServerStream
-	logger *logger.Logger
+	logger logger.Logger
 	cfg    *ValidationConfig
 	method string
 }
@@ -103,8 +102,8 @@ func (w *validationServerStream) RecvMsg(m interface{}) error {
 	if err := validate(m); err != nil {
 		if w.cfg.LogValidationErrors {
 			w.logger.Warn("gRPC stream message validation failed",
-				zap.String("grpc.method", w.method),
-				zap.Error(err),
+				"grpc.method", w.method,
+				"error", err,
 			)
 		}
 		return status.Error(codes.InvalidArgument, err.Error())
@@ -114,7 +113,7 @@ func (w *validationServerStream) RecvMsg(m interface{}) error {
 }
 
 // ClientValidationInterceptor Client 端校验拦截器（Unary）
-func ClientValidationInterceptor(logger *logger.Logger, cfg *ValidationConfig) grpc.UnaryClientInterceptor {
+func ClientValidationInterceptor(l logger.Logger, cfg *ValidationConfig) grpc.UnaryClientInterceptor {
 	if cfg == nil {
 		cfg = DefaultValidationConfig()
 	}
@@ -127,9 +126,9 @@ func ClientValidationInterceptor(logger *logger.Logger, cfg *ValidationConfig) g
 		// 校验请求参数
 		if err := validate(req); err != nil {
 			if cfg.LogValidationErrors {
-				logger.Warn("gRPC client request validation failed",
-					zap.String("grpc.method", method),
-					zap.Error(err),
+				l.Warn("gRPC client request validation failed",
+					"grpc.method", method,
+					"error", err,
 				)
 			}
 			return status.Error(codes.InvalidArgument, err.Error())
@@ -142,9 +141,9 @@ func ClientValidationInterceptor(logger *logger.Logger, cfg *ValidationConfig) g
 		if err == nil {
 			if err := validate(reply); err != nil {
 				if cfg.LogValidationErrors {
-					logger.Warn("gRPC client response validation failed",
-						zap.String("grpc.method", method),
-						zap.Error(err),
+					l.Warn("gRPC client response validation failed",
+						"grpc.method", method,
+						"error", err,
 					)
 				}
 				return status.Error(codes.Internal, fmt.Sprintf("invalid response: %v", err))

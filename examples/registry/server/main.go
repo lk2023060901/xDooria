@@ -13,7 +13,6 @@ import (
 	"github.com/lk2023060901/xdooria/pkg/logger"
 	registryetcd "github.com/lk2023060901/xdooria/pkg/registry/etcd"
 	"github.com/lk2023060901/xdooria/pkg/util/conc"
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
@@ -31,8 +30,8 @@ type server struct {
 
 func (s *server) SayHello(ctx context.Context, req *helloworld.HelloRequest) (*helloworld.HelloReply, error) {
 	logger.Default().Info("received request",
-		zap.String("name", req.Name),
-		zap.String("server", s.name),
+		"name", req.Name,
+		"server", s.name,
 	)
 	return &helloworld.HelloReply{
 		Message: fmt.Sprintf("Hello %s from %s", req.Name, s.name),
@@ -45,7 +44,8 @@ func main() {
 	// 创建监听器
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
 	if err != nil {
-		logger.Default().Fatal("failed to listen", zap.Error(err))
+		logger.Default().Error("failed to listen", "error", err)
+		os.Exit(1)
 	}
 
 	address := fmt.Sprintf("localhost:%d", *port)
@@ -55,14 +55,16 @@ func main() {
 		Endpoints: []string{"127.0.0.1:2379"},
 	})
 	if err != nil {
-		logger.Default().Fatal("failed to create registrar", zap.Error(err))
+		logger.Default().Error("failed to create registrar", "error", err)
+		os.Exit(1)
 	}
 
 	// 注册 etcd resolver (只需要注册一次，所有 client 都会使用)
 	if err := registryetcd.RegisterBuilder(&registryetcd.Config{
 		Endpoints: []string{"127.0.0.1:2379"},
 	}); err != nil {
-		logger.Default().Fatal("failed to register resolver builder", zap.Error(err))
+		logger.Default().Error("failed to register resolver builder", "error", err)
+		os.Exit(1)
 	}
 
 	// 创建健康检查器
@@ -79,8 +81,8 @@ func main() {
 	healthChecker.SetServing("helloworld.Greeter")
 
 	logger.Default().Info("starting server",
-		zap.String("address", address),
-		zap.String("name", *name),
+		"address", address,
+		"name", *name,
 	)
 
 	// 创建 context 用于优雅关闭
@@ -106,7 +108,7 @@ func main() {
 			registryetcd.WithRegistrar(registrar),
 		)
 		if err != nil {
-			logger.Default().Error("server error", zap.Error(err))
+			logger.Default().Error("server error", "error", err)
 		}
 		return err, err
 	})
@@ -119,7 +121,7 @@ func main() {
 		serveFuture.Await()
 	case <-serveFuture.Inner():
 		if err := serveFuture.Err(); err != nil {
-			logger.Default().Error("server stopped with error", zap.Error(err))
+			logger.Default().Error("server stopped with error", "error", err)
 		}
 	}
 }
