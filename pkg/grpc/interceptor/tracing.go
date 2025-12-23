@@ -4,10 +4,7 @@ import (
 	"context"
 
 	"github.com/lk2023060901/xdooria/pkg/config"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/trace"
+	"github.com/lk2023060901/xdooria/pkg/otel"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -60,11 +57,11 @@ func ServerTracingInterceptor(cfg *TracingConfig) grpc.UnaryServerInterceptor {
 		ctx, span := tracer.Start(
 			ctx,
 			info.FullMethod,
-			trace.WithSpanKind(trace.SpanKindServer),
-			trace.WithAttributes(
-				attribute.String("rpc.system", "grpc"),
-				attribute.String("rpc.service", extractServiceName(info.FullMethod)),
-				attribute.String("rpc.method", extractMethodName(info.FullMethod)),
+			otel.WithSpanKind(otel.SpanKindServer),
+			otel.WithAttributes(
+				otel.String("rpc.system", "grpc"),
+				otel.String("rpc.service", extractServiceName(info.FullMethod)),
+				otel.String("rpc.method", extractMethodName(info.FullMethod)),
 			),
 		)
 		defer span.End()
@@ -75,17 +72,17 @@ func ServerTracingInterceptor(cfg *TracingConfig) grpc.UnaryServerInterceptor {
 		// 记录错误
 		if err != nil {
 			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
+			span.SetStatus(otel.CodeError, err.Error())
 
 			if st, ok := status.FromError(err); ok {
 				span.SetAttributes(
-					attribute.String("rpc.grpc.status_code", st.Code().String()),
+					otel.String("rpc.grpc.status_code", st.Code().String()),
 				)
 			}
 		} else {
-			span.SetStatus(codes.Ok, "")
+			span.SetStatus(otel.CodeOk, "")
 			span.SetAttributes(
-				attribute.String("rpc.grpc.status_code", "OK"),
+				otel.String("rpc.grpc.status_code", "OK"),
 			)
 		}
 
@@ -120,12 +117,12 @@ func StreamServerTracingInterceptor(cfg *TracingConfig) grpc.StreamServerInterce
 		ctx, span := tracer.Start(
 			ctx,
 			info.FullMethod,
-			trace.WithSpanKind(trace.SpanKindServer),
-			trace.WithAttributes(
-				attribute.String("rpc.system", "grpc"),
-				attribute.String("rpc.service", extractServiceName(info.FullMethod)),
-				attribute.String("rpc.method", extractMethodName(info.FullMethod)),
-				attribute.Bool("rpc.stream", true),
+			otel.WithSpanKind(otel.SpanKindServer),
+			otel.WithAttributes(
+				otel.String("rpc.system", "grpc"),
+				otel.String("rpc.service", extractServiceName(info.FullMethod)),
+				otel.String("rpc.method", extractMethodName(info.FullMethod)),
+				otel.Bool("rpc.stream", true),
 			),
 		)
 		defer span.End()
@@ -142,17 +139,17 @@ func StreamServerTracingInterceptor(cfg *TracingConfig) grpc.StreamServerInterce
 		// 记录错误
 		if err != nil {
 			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
+			span.SetStatus(otel.CodeError, err.Error())
 
 			if st, ok := status.FromError(err); ok {
 				span.SetAttributes(
-					attribute.String("rpc.grpc.status_code", st.Code().String()),
+					otel.String("rpc.grpc.status_code", st.Code().String()),
 				)
 			}
 		} else {
-			span.SetStatus(codes.Ok, "")
+			span.SetStatus(otel.CodeOk, "")
 			span.SetAttributes(
-				attribute.String("rpc.grpc.status_code", "OK"),
+				otel.String("rpc.grpc.status_code", "OK"),
 			)
 		}
 
@@ -181,11 +178,11 @@ func ClientTracingInterceptor(cfg *TracingConfig) grpc.UnaryClientInterceptor {
 		ctx, span := tracer.Start(
 			ctx,
 			method,
-			trace.WithSpanKind(trace.SpanKindClient),
-			trace.WithAttributes(
-				attribute.String("rpc.system", "grpc"),
-				attribute.String("rpc.service", extractServiceName(method)),
-				attribute.String("rpc.method", extractMethodName(method)),
+			otel.WithSpanKind(otel.SpanKindClient),
+			otel.WithAttributes(
+				otel.String("rpc.system", "grpc"),
+				otel.String("rpc.service", extractServiceName(method)),
+				otel.String("rpc.method", extractMethodName(method)),
 			),
 		)
 		defer span.End()
@@ -205,17 +202,17 @@ func ClientTracingInterceptor(cfg *TracingConfig) grpc.UnaryClientInterceptor {
 		// 记录错误
 		if err != nil {
 			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
+			span.SetStatus(otel.CodeError, err.Error())
 
 			if st, ok := status.FromError(err); ok {
 				span.SetAttributes(
-					attribute.String("rpc.grpc.status_code", st.Code().String()),
+					otel.String("rpc.grpc.status_code", st.Code().String()),
 				)
 			}
 		} else {
-			span.SetStatus(codes.Ok, "")
+			span.SetStatus(otel.CodeOk, "")
 			span.SetAttributes(
-				attribute.String("rpc.grpc.status_code", "OK"),
+				otel.String("rpc.grpc.status_code", "OK"),
 			)
 		}
 
@@ -244,12 +241,12 @@ func StreamClientTracingInterceptor(cfg *TracingConfig) grpc.StreamClientInterce
 		ctx, span := tracer.Start(
 			ctx,
 			method,
-			trace.WithSpanKind(trace.SpanKindClient),
-			trace.WithAttributes(
-				attribute.String("rpc.system", "grpc"),
-				attribute.String("rpc.service", extractServiceName(method)),
-				attribute.String("rpc.method", extractMethodName(method)),
-				attribute.Bool("rpc.stream", true),
+			otel.WithSpanKind(otel.SpanKindClient),
+			otel.WithAttributes(
+				otel.String("rpc.system", "grpc"),
+				otel.String("rpc.service", extractServiceName(method)),
+				otel.String("rpc.method", extractMethodName(method)),
+				otel.Bool("rpc.stream", true),
 			),
 		)
 
@@ -267,7 +264,7 @@ func StreamClientTracingInterceptor(cfg *TracingConfig) grpc.StreamClientInterce
 
 		if err != nil {
 			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
+			span.SetStatus(otel.CodeError, err.Error())
 			span.End()
 			return nil, err
 		}
@@ -318,14 +315,14 @@ func (w *wrappedStreamWithTracing) Context() context.Context {
 // wrappedClientStreamWithTracing 包装 ClientStream 以在结束时关闭 span
 type wrappedClientStreamWithTracing struct {
 	grpc.ClientStream
-	span trace.Span
+	span otel.Span
 }
 
 func (w *wrappedClientStreamWithTracing) RecvMsg(m interface{}) error {
 	err := w.ClientStream.RecvMsg(m)
 	if err != nil {
 		w.span.RecordError(err)
-		w.span.SetStatus(codes.Error, err.Error())
+		w.span.SetStatus(otel.CodeError, err.Error())
 		w.span.End()
 	}
 	return err
@@ -334,7 +331,7 @@ func (w *wrappedClientStreamWithTracing) RecvMsg(m interface{}) error {
 func (w *wrappedClientStreamWithTracing) CloseSend() error {
 	err := w.ClientStream.CloseSend()
 	if err == nil {
-		w.span.SetStatus(codes.Ok, "")
+		w.span.SetStatus(otel.CodeOk, "")
 	}
 	w.span.End()
 	return err

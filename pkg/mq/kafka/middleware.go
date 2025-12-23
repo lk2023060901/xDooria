@@ -5,11 +5,7 @@ import (
 	"time"
 
 	"github.com/lk2023060901/xdooria/pkg/logger"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/trace"
+	"github.com/lk2023060901/xdooria/pkg/otel"
 )
 
 // ===============================
@@ -61,7 +57,7 @@ func TracingMiddleware(tracerName string) Middleware {
 			tracer := otel.Tracer(tracerName)
 
 			// 从消息头提取追踪上下文
-			carrier := propagation.MapCarrier{}
+			carrier := otel.MapCarrier{}
 			for k, v := range msg.Headers {
 				carrier[k] = v
 			}
@@ -69,24 +65,24 @@ func TracingMiddleware(tracerName string) Middleware {
 
 			// 创建消费者 span
 			ctx, span := tracer.Start(ctx, "kafka.consume",
-				trace.WithSpanKind(trace.SpanKindConsumer),
-				trace.WithAttributes(
-					attribute.String("messaging.system", "kafka"),
-					attribute.String("messaging.destination", msg.Topic),
-					attribute.Int("messaging.kafka.partition", msg.Partition),
-					attribute.Int64("messaging.kafka.offset", msg.Offset),
+				otel.WithSpanKind(otel.SpanKindConsumer),
+				otel.WithAttributes(
+					otel.String("messaging.system", "kafka"),
+					otel.String("messaging.destination", msg.Topic),
+					otel.Int("messaging.kafka.partition", msg.Partition),
+					otel.Int64("messaging.kafka.offset", msg.Offset),
 				),
 			)
 			defer span.End()
 
 			if len(msg.Key) > 0 {
-				span.SetAttributes(attribute.String("messaging.kafka.message_key", string(msg.Key)))
+				span.SetAttributes(otel.String("messaging.kafka.message_key", string(msg.Key)))
 			}
 
 			err := next(ctx, msg)
 			if err != nil {
 				span.RecordError(err)
-				span.SetStatus(codes.Error, err.Error())
+				span.SetStatus(otel.CodeError, err.Error())
 			}
 
 			return err
@@ -181,29 +177,29 @@ func ProducerTracingMiddleware(tracerName string) ProducerMiddleware {
 
 		// 创建生产者 span
 		ctx, span := tracer.Start(ctx, "kafka.publish",
-			trace.WithSpanKind(trace.SpanKindProducer),
-			trace.WithAttributes(
-				attribute.String("messaging.system", "kafka"),
-				attribute.String("messaging.destination", msg.Topic),
+			otel.WithSpanKind(otel.SpanKindProducer),
+			otel.WithAttributes(
+				otel.String("messaging.system", "kafka"),
+				otel.String("messaging.destination", msg.Topic),
 			),
 		)
 		defer span.End()
 
 		if len(msg.Key) > 0 {
-			span.SetAttributes(attribute.String("messaging.kafka.message_key", string(msg.Key)))
+			span.SetAttributes(otel.String("messaging.kafka.message_key", string(msg.Key)))
 		}
 
 		// 注入追踪上下文到消息头
 		if msg.Headers == nil {
 			msg.Headers = make(map[string]string)
 		}
-		carrier := propagation.MapCarrier(msg.Headers)
+		carrier := otel.MapCarrier(msg.Headers)
 		otel.GetTextMapPropagator().Inject(ctx, carrier)
 
 		err := next(ctx, msg)
 		if err != nil {
 			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
+			span.SetStatus(otel.CodeError, err.Error())
 		}
 
 		return err

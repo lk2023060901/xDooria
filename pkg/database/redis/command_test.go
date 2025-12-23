@@ -373,7 +373,7 @@ func TestSortedSetCommands(t *testing.T) {
 		t.Errorf("ZRange() returned %v members, want 3", len(members))
 	}
 	// 检查顺序（从小到大）
-	if members[0] != "player3" {
+	if len(members) > 0 && members[0] != "player3" {
 		t.Errorf("ZRange()[0] = %v, want player3", members[0])
 	}
 
@@ -383,7 +383,7 @@ func TestSortedSetCommands(t *testing.T) {
 		t.Errorf("ZRevRange() error = %v", err)
 	}
 	// 检查顺序（从大到小）
-	if members[0] != "player1" {
+	if len(members) > 0 && members[0] != "player1" {
 		t.Errorf("ZRevRange()[0] = %v, want player1", members[0])
 	}
 

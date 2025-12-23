@@ -141,43 +141,10 @@ func TestNewTracerDisabled(t *testing.T) {
 
 	// Double close should return error
 	err = tracer.Close()
-	assert.Equal(t, ErrTracerClosed, err)
+	assert.Error(t, err) // 现在返回 otel.ErrProviderClosed
 }
 
-func TestCreateSampler(t *testing.T) {
-	tests := []struct {
-		name string
-		cfg  SamplerConfig
-	}{
-		{
-			name: "always sampler",
-			cfg:  SamplerConfig{Type: SamplerTypeAlways},
-		},
-		{
-			name: "never sampler",
-			cfg:  SamplerConfig{Type: SamplerTypeNever},
-		},
-		{
-			name: "ratio sampler",
-			cfg:  SamplerConfig{Type: SamplerTypeRatio, Ratio: 0.5},
-		},
-		{
-			name: "parent sampler",
-			cfg:  SamplerConfig{Type: SamplerTypeParent},
-		},
-		{
-			name: "default sampler",
-			cfg:  SamplerConfig{Type: "unknown"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			sampler := createSampler(tt.cfg)
-			assert.NotNil(t, sampler)
-		})
-	}
-}
+// TestCreateSampler 已移除：createSampler 已移至 pkg/otel 包内部实现
 
 func TestContextFunctions(t *testing.T) {
 	ctx := context.Background()
@@ -255,19 +222,7 @@ func TestTracerGetTracer(t *testing.T) {
 	assert.NotNil(t, tr)
 }
 
-func TestCreateResource(t *testing.T) {
-	cfg := &Config{
-		ServiceName: "test-service",
-		Attributes: map[string]string{
-			"env":     "test",
-			"version": "1.0.0",
-		},
-	}
-
-	res, err := createResource(cfg)
-	require.NoError(t, err)
-	assert.NotNil(t, res)
-}
+// TestCreateResource 已移除：createResource 已移至 pkg/otel 包内部实现
 
 func TestEndpointTypes(t *testing.T) {
 	assert.Equal(t, EndpointType("collector"), EndpointTypeCollector)
