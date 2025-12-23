@@ -669,3 +669,106 @@ func TestThreeNode_ClusterRestart(t *testing.T) {
 
 	t.Log("Phase 4 complete: Cluster fully operational after restart")
 }
+
+func TestSingleNode_ApplyLarge(t *testing.T) {
+	node, fsm := createTestNode(t, 17060, true)
+	defer node.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err := node.Start(ctx)
+	require.NoError(t, err)
+
+	// Create a command with large data (larger than typical chunk size threshold)
+	// We'll use a moderately large payload to test the chunking path
+	largeData := make([]byte, 1024*100) // 100KB
+	for i := range largeData {
+		largeData[i] = byte(i % 256)
+	}
+
+	cmd := &Command{
+		Type: CommandTypeSet,
+		Key:  "large-key",
+		Data: largeData,
+	}
+
+	data, err := EncodeCommand(cmd)
+	require.NoError(t, err)
+
+	// Apply using ApplyLarge
+	result, err := node.ApplyLarge(data, 5*time.Second)
+	require.NoError(t, err)
+
+	applyResult, ok := result.(*ApplyResult)
+	require.True(t, ok)
+	assert.Equal(t, "large-key", applyResult.Data)
+	assert.NoError(t, applyResult.Error)
+
+	// Verify FSM state
+	val, exists := fsm.Get("large-key")
+	assert.True(t, exists)
+	assert.Equal(t, string(largeData), val)
+}
+
+func TestSingleNode_ApplyLarge_NotLeader(t *testing.T) {
+	node, _ := createTestNode(t, 17061, false) // Not bootstrap
+	defer node.Close()
+
+	// Node is not a leader (not bootstrapped)
+	_, err := node.ApplyLarge([]byte("data"), time.Second)
+	require.Error(t, err)
+	assert.True(t, IsNotLeader(err))
+}
+
+func TestSingleNode_ApplyLarge_NodeClosed(t *testing.T) {
+	node, _ := createTestNode(t, 17062, true)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err := node.Start(ctx)
+	require.NoError(t, err)
+
+	// Close the node
+	err = node.Close()
+	require.NoError(t, err)
+
+	// ApplyLarge should fail after close
+	_, err = node.ApplyLarge([]byte("data"), time.Second)
+	require.Error(t, err)
+	assert.True(t, IsNodeClosed(err))
+}
+
+func TestSingleNode_ApplyLarge_SmallData(t *testing.T) {
+	node, fsm := createTestNode(t, 17063, true)
+	defer node.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err := node.Start(ctx)
+	require.NoError(t, err)
+
+	// Test with small data (should still work through ApplyLarge)
+	cmd := &Command{
+		Type: CommandTypeSet,
+		Key:  "small-key",
+		Data: []byte("small-value"),
+	}
+
+	data, err := EncodeCommand(cmd)
+	require.NoError(t, err)
+
+	result, err := node.ApplyLarge(data, time.Second)
+	require.NoError(t, err)
+
+	applyResult, ok := result.(*ApplyResult)
+	require.True(t, ok)
+	assert.Equal(t, "small-key", applyResult.Data)
+
+	// Verify FSM state
+	val, exists := fsm.Get("small-key")
+	assert.True(t, exists)
+	assert.Equal(t, "small-value", val)
+}

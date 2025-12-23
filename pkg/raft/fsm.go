@@ -2,10 +2,11 @@
 package raft
 
 import (
-	"encoding/json"
 	"io"
 
+	"github.com/hashicorp/go-raftchunking"
 	"github.com/hashicorp/raft"
+	"github.com/lk2023060901/xdooria/pkg/serializer"
 )
 
 // CommandType 命令类型
@@ -22,20 +23,20 @@ const (
 
 // Command 表示一个要应用到 FSM 的命令
 type Command struct {
-	Type CommandType `json:"type"`
-	Key  string      `json:"key,omitempty"`
-	Data []byte      `json:"data,omitempty"`
+	Type CommandType `codec:"type"`
+	Key  string      `codec:"key,omitempty"`
+	Data []byte      `codec:"data,omitempty"`
 }
 
-// EncodeCommand 编码命令
+// EncodeCommand 使用 msgpack 编码命令
 func EncodeCommand(cmd *Command) ([]byte, error) {
-	return json.Marshal(cmd)
+	return serializer.Encode(cmd)
 }
 
-// DecodeCommand 解码命令
+// DecodeCommand 使用 msgpack 解码命令
 func DecodeCommand(data []byte) (*Command, error) {
 	var cmd Command
-	if err := json.Unmarshal(data, &cmd); err != nil {
+	if err := serializer.Decode(data, &cmd); err != nil {
 		return nil, err
 	}
 	return &cmd, nil
@@ -115,3 +116,23 @@ func (s *SimpleFSMSnapshot) Persist(sink raft.SnapshotSink) error {
 
 // Release 实现 raft.FSMSnapshot 接口
 func (s *SimpleFSMSnapshot) Release() {}
+
+// chunkingFSM 内部接口，用于获取 chunking 状态
+type chunkingFSM interface {
+	raft.FSM
+	CurrentState() (*raftchunking.State, error)
+	RestoreState(state *raftchunking.State) error
+}
+
+// chunkingFSMWrapper 包装 FSM 并添加 chunking 支持
+type chunkingFSMWrapper struct {
+	*raftchunking.ChunkingFSM
+}
+
+// newChunkingFSMWrapper 创建支持 chunking 的 FSM 包装器
+func newChunkingFSMWrapper(fsm raft.FSM) *chunkingFSMWrapper {
+	return &chunkingFSMWrapper{
+		ChunkingFSM: raftchunking.NewChunkingFSM(fsm, nil),
+	}
+}
+

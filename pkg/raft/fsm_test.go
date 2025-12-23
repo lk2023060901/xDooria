@@ -199,3 +199,50 @@ func TestFSMWrapper(t *testing.T) {
 		assert.Equal(t, 1, fsm.restores)
 	})
 }
+
+func TestChunkingFSMWrapper(t *testing.T) {
+	fsm := newMockFSM()
+	wrapper := newFSMWrapper(fsm)
+	chunkingWrapper := newChunkingFSMWrapper(wrapper)
+
+	t.Run("apply delegates through chunking wrapper", func(t *testing.T) {
+		log := &raft.Log{Data: []byte("chunked-data")}
+		result := chunkingWrapper.Apply(log)
+
+		// The result should be from the underlying FSM
+		assert.Len(t, fsm.applied, 1)
+		assert.Equal(t, []byte("chunked-data"), fsm.applied[0])
+
+		applyResult, ok := result.(*ApplyResult)
+		require.True(t, ok)
+		assert.Equal(t, 1, applyResult.Data)
+	})
+
+	t.Run("snapshot delegates through chunking wrapper", func(t *testing.T) {
+		snap, err := chunkingWrapper.Snapshot()
+		require.NoError(t, err)
+		assert.NotNil(t, snap)
+		assert.Equal(t, 1, fsm.snapshots)
+	})
+
+	t.Run("restore delegates through chunking wrapper", func(t *testing.T) {
+		reader := io.NopCloser(bytes.NewReader([]byte("restore-data")))
+		err := chunkingWrapper.Restore(reader)
+		require.NoError(t, err)
+		assert.Equal(t, 1, fsm.restores)
+	})
+
+	t.Run("current state returns valid state", func(t *testing.T) {
+		state, err := chunkingWrapper.CurrentState()
+		require.NoError(t, err)
+		// State can be nil if no chunking operations are in progress
+		// This is expected behavior
+		_ = state
+	})
+
+	t.Run("restore state accepts nil", func(t *testing.T) {
+		err := chunkingWrapper.RestoreState(nil)
+		require.NoError(t, err)
+	})
+}
+

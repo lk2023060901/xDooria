@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/go-raftchunking"
 	"github.com/hashicorp/raft"
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
 	"github.com/lk2023060901/xdooria/pkg/logger"
@@ -51,6 +52,9 @@ type Node struct {
 	nodeID string // 自动生成的节点 ID
 	raft   *raft.Raft
 	fsm    FSM
+
+	// ChunkingFSM 包装器（用于处理大数据分片和快照状态）
+	chunker chunkingFSM
 
 	// 存储
 	logStore      raft.LogStore
@@ -161,9 +165,12 @@ func (n *Node) setup() error {
 
 	// 创建 Raft 实例
 	raftConfig := n.config.ToRaftConfig(n.nodeID)
-	fsmWrapper := newFSMWrapper(n.fsm)
 
-	r, err := raft.NewRaft(raftConfig, fsmWrapper, n.logStore, n.stableStore, n.snapshotStore, n.transport)
+	// 用 ChunkingFSM 包装用户 FSM，支持大数据分片
+	wrapper := newFSMWrapper(n.fsm)
+	n.chunker = newChunkingFSMWrapper(wrapper)
+
+	r, err := raft.NewRaft(raftConfig, n.chunker, n.logStore, n.stableStore, n.snapshotStore, n.transport)
 	if err != nil {
 		transport.Close()
 		boltStore.Close()
@@ -300,6 +307,42 @@ func (n *Node) ApplyCommand(cmd *Command, timeout time.Duration) (interface{}, e
 		return nil, fmt.Errorf("failed to encode command: %w", err)
 	}
 	return n.Apply(data, timeout)
+}
+
+// ApplyLarge 应用大数据命令（自动分片）
+// 当数据超过 Raft 建议的最大数据大小时，会自动分片处理
+// timeout 是每个分片的超时时间，不是总超时时间
+func (n *Node) ApplyLarge(data []byte, timeout time.Duration) (interface{}, error) {
+	n.mu.RLock()
+	if n.closed {
+		n.mu.RUnlock()
+		return nil, ErrNodeClosed
+	}
+	n.mu.RUnlock()
+
+	if n.State() != NodeStateLeader {
+		return nil, ErrNotLeader
+	}
+
+	// 使用 ChunkingApply 处理大数据分片
+	applyFunc := func(log raft.Log, t time.Duration) raft.ApplyFuture {
+		return n.raft.Apply(log.Data, t)
+	}
+
+	future := raftchunking.ChunkingApply(data, nil, timeout, applyFunc)
+	if err := future.Error(); err != nil {
+		if err == raft.ErrLeadershipLost {
+			return nil, ErrLeadershipLost
+		}
+		return nil, err
+	}
+
+	// 处理 ChunkingSuccess 包装
+	resp := future.Response()
+	if cs, ok := resp.(raftchunking.ChunkingSuccess); ok {
+		return cs.Response, nil
+	}
+	return resp, nil
 }
 
 // State 返回当前节点状态

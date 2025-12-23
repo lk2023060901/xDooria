@@ -45,6 +45,9 @@ var (
 
 	// ErrServerNotFound 服务器未找到
 	ErrServerNotFound = errors.New("raft: server not found")
+
+	// ErrSnapshotCorrupted 快照数据损坏
+	ErrSnapshotCorrupted = errors.New("raft: snapshot corrupted")
 )
 
 // IsNotLeader 检查是否是非 Leader 错误
