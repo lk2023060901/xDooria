@@ -1,0 +1,20 @@
+services:
+  kafka:
+    image: apache/kafka:3.7.0
+    ports:
+      - "9092:9092"   # PLAINTEXT
+      - "9093:9093"   # SASL_SSL
+    environment:
+      # JAAS configuration for SASL/PLAIN
+      KAFKA_OPTS: "-Djava.security.auth.login.config=/etc/kafka/secrets/kafka_server_jaas.conf"
+    volumes:
+      - ./certs:/etc/kafka/secrets:ro
+      - ./server.properties:/etc/kafka/server.properties:ro
+      - ./entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: ["/bin/bash", "/entrypoint.sh"]
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
