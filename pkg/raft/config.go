@@ -4,7 +4,6 @@ package raft
 import (
 	"fmt"
 	"net"
-	"strings"
 	"time"
 
 	"github.com/hashicorp/raft"
@@ -17,10 +16,6 @@ type Config struct {
 
 	// 数据目录
 	DataDir string `mapstructure:"data_dir"` // 数据存储目录
-
-	// 集群配置
-	Bootstrap bool     `mapstructure:"bootstrap"` // 是否作为集群第一个节点启动
-	Peers     []string `mapstructure:"peers"`     // 初始对等节点列表 (node_id=host:port)
 
 	// 超时配置
 	HeartbeatTimeout   time.Duration `mapstructure:"heartbeat_timeout"`    // 心跳超时
@@ -49,8 +44,6 @@ func DefaultConfig() *Config {
 	return &Config{
 		BindAddr:           "127.0.0.1:7000",
 		DataDir:            "./raft-data",
-		Bootstrap:          false,
-		Peers:              nil,
 		HeartbeatTimeout:   1000 * time.Millisecond,
 		ElectionTimeout:    1000 * time.Millisecond,
 		CommitTimeout:      50 * time.Millisecond,
@@ -136,34 +129,3 @@ func (c *Config) ToRaftConfig(nodeID string) *raft.Config {
 	return cfg
 }
 
-// Peer 对等节点信息
-type Peer struct {
-	ID      string // 节点 ID
-	Address string // 节点地址
-}
-
-// ParsePeers 解析对等节点配置
-// 格式: node_id=host:port
-func ParsePeers(peers []string) ([]Peer, error) {
-	result := make([]Peer, 0, len(peers))
-
-	for _, p := range peers {
-		// 期望格式: node_id=host:port
-		idx := strings.Index(p, "=")
-		if idx <= 0 || idx >= len(p)-1 {
-			return nil, fmt.Errorf("invalid peer format: %s (expected: node_id=host:port)", p)
-		}
-
-		id := p[:idx]
-		addr := p[idx+1:]
-
-		// 验证地址
-		if _, _, err := net.SplitHostPort(addr); err != nil {
-			return nil, fmt.Errorf("invalid peer address: %s: %v", addr, err)
-		}
-
-		result = append(result, Peer{ID: id, Address: addr})
-	}
-
-	return result, nil
-}

@@ -179,37 +179,7 @@ func (n *Node) setup() error {
 	n.raft = r
 	n.leaderCh = r.LeaderCh()
 
-	// Bootstrap 集群（如果是第一个节点）
-	if n.config.Bootstrap {
-		configuration := raft.Configuration{
-			Servers: []raft.Server{
-				{
-					ID:      raft.ServerID(n.nodeID),
-					Address: raft.ServerAddress(n.config.BindAddr),
-				},
-			},
-		}
-
-		// 添加其他对等节点
-		peers, err := ParsePeers(n.config.Peers)
-		if err != nil {
-			n.log("warn", "failed to parse peers", "error", err)
-		} else {
-			for _, p := range peers {
-				configuration.Servers = append(configuration.Servers, raft.Server{
-					ID:      raft.ServerID(p.ID),
-					Address: raft.ServerAddress(p.Address),
-				})
-			}
-		}
-
-		future := n.raft.BootstrapCluster(configuration)
-		if err := future.Error(); err != nil {
-			if err != raft.ErrCantBootstrap {
-				n.log("warn", "bootstrap failed", "error", err)
-			}
-		}
-	}
+	// 注意：集群 Bootstrap 将由 Gossip/Autopilot 自动处理
 
 	return nil
 }
@@ -406,35 +376,6 @@ func (n *Node) Snapshot() error {
 	return future.Error()
 }
 
-// AddVoter 添加投票节点
-func (n *Node) AddVoter(id, address string, prevIndex uint64, timeout time.Duration) error {
-	if n.State() != NodeStateLeader {
-		return ErrNotLeader
-	}
-
-	future := n.raft.AddVoter(raft.ServerID(id), raft.ServerAddress(address), prevIndex, timeout)
-	return future.Error()
-}
-
-// AddNonvoter 添加非投票节点（只读副本）
-func (n *Node) AddNonvoter(id, address string, prevIndex uint64, timeout time.Duration) error {
-	if n.State() != NodeStateLeader {
-		return ErrNotLeader
-	}
-
-	future := n.raft.AddNonvoter(raft.ServerID(id), raft.ServerAddress(address), prevIndex, timeout)
-	return future.Error()
-}
-
-// RemoveServer 移除节点
-func (n *Node) RemoveServer(id string, prevIndex uint64, timeout time.Duration) error {
-	if n.State() != NodeStateLeader {
-		return ErrNotLeader
-	}
-
-	future := n.raft.RemoveServer(raft.ServerID(id), prevIndex, timeout)
-	return future.Error()
-}
 
 // GetConfiguration 获取集群配置
 func (n *Node) GetConfiguration() ([]Server, error) {
