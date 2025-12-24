@@ -4,10 +4,12 @@ package raft
 import (
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -72,11 +74,20 @@ type Node struct {
 	// 传输
 	transport *raft.NetworkTransport
 
+	// RaftLayer (用于端口复用)
+	raftLayer *consul.RaftLayer
+
+	// 主监听器 (Raft 和 RPC 共用)
+	listener net.Listener
+
 	// Serf/Gossip 集群发现
 	serfLAN *consul.SerfLAN
 
 	// Autopilot 自动集群管理
 	autopilot *consul.Autopilot
+
+	// RPC 服务器
+	rpcServer *consul.RPCServer
 
 	// 连接池
 	connPool *pool.ConnPool
@@ -174,25 +185,33 @@ func (n *Node) setup() error {
 	}
 	n.snapshotStore = snapshotStore
 
-	// 创建传输层
+	// 创建主监听器 (Raft 和 RPC 共用)
+	listener, err := net.Listen("tcp", n.config.BindAddr)
+	if err != nil {
+		boltStore.Close()
+		return fmt.Errorf("failed to create listener: %w", err)
+	}
+	n.listener = listener
+
+	// 解析监听地址
 	addr, err := net.ResolveTCPAddr("tcp", n.config.BindAddr)
 	if err != nil {
+		listener.Close()
 		boltStore.Close()
 		return fmt.Errorf("failed to resolve bind addr: %w", err)
 	}
 
-	transport, err := raft.NewTCPTransport(
-		n.config.BindAddr,
-		addr,
-		n.config.MaxPool,
-		10*time.Second,
-		os.Stderr,
-	)
-	if err != nil {
-		boltStore.Close()
-		return fmt.Errorf("failed to create transport: %w", err)
+	// 创建 RaftLayer (用于端口复用)
+	n.raftLayer = consul.NewRaftLayer(addr, listener.Addr(), nil, nil)
+
+	// 创建传输层 (使用 RaftLayer)
+	transConfig := &raft.NetworkTransportConfig{
+		Stream:  n.raftLayer,
+		MaxPool: n.config.MaxPool,
+		Timeout: 10 * time.Second,
+		Logger:  n.hcLogger,
 	}
-	n.transport = transport
+	n.transport = raft.NewNetworkTransportWithConfig(transConfig)
 
 	// 创建 Raft 实例
 	raftConfig := n.config.ToRaftConfig(n.nodeID)
@@ -203,8 +222,10 @@ func (n *Node) setup() error {
 
 	r, err := raft.NewRaft(raftConfig, n.chunker, n.logStore, n.stableStore, n.snapshotStore, n.transport)
 	if err != nil {
-		transport.Close()
-		boltStore.Close()
+		n.transport.Close()
+		n.raftLayer.Close()
+		n.listener.Close()
+		n.boltStore.Close()
 		return fmt.Errorf("failed to create raft: %w", err)
 	}
 	n.raft = r
@@ -213,36 +234,64 @@ func (n *Node) setup() error {
 	// 初始化 TLS 配置器
 	if err := n.setupTLS(); err != nil {
 		n.raft.Shutdown()
-		transport.Close()
-		boltStore.Close()
+		n.transport.Close()
+		n.raftLayer.Close()
+		n.listener.Close()
+		n.boltStore.Close()
 		return fmt.Errorf("failed to setup TLS: %w", err)
 	}
 
 	// 初始化连接池
 	if err := n.setupConnPool(); err != nil {
 		n.raft.Shutdown()
-		transport.Close()
-		boltStore.Close()
+		n.transport.Close()
+		n.raftLayer.Close()
+		n.listener.Close()
+		n.boltStore.Close()
 		return fmt.Errorf("failed to setup connection pool: %w", err)
 	}
 
-	// 初始化 Serf LAN（用于节点发现和自动 Bootstrap）
-	if err := n.setupSerfLAN(); err != nil {
+	// 初始化 RPC 服务器 (使用主监听器)
+	if err := n.setupRPCServer(); err != nil {
 		n.connPool.Shutdown()
 		n.raft.Shutdown()
-		transport.Close()
-		boltStore.Close()
-		return fmt.Errorf("failed to setup serf LAN: %w", err)
+		n.transport.Close()
+		n.raftLayer.Close()
+		n.listener.Close()
+		n.boltStore.Close()
+		return fmt.Errorf("failed to setup RPC server: %w", err)
 	}
 
-	// 初始化 Autopilot（用于自动集群管理）
-	if err := n.setupAutopilot(); err != nil {
-		n.serfLAN.Shutdown()
-		n.connPool.Shutdown()
-		n.raft.Shutdown()
-		transport.Close()
-		boltStore.Close()
-		return fmt.Errorf("failed to setup autopilot: %w", err)
+	// 启动连接处理 (路由 Raft/RPC 连接)
+	go n.listen()
+
+	// 如果 ExpectNodes > 0，启用 Serf 和 Autopilot
+	// ExpectNodes = 0 表示跳过集群发现（单节点测试模式）
+	if n.config.ExpectNodes > 0 {
+		// 初始化 Serf LAN（用于节点发现和自动 Bootstrap）
+		if err := n.setupSerfLAN(); err != nil {
+			n.rpcServer.Shutdown()
+			n.connPool.Shutdown()
+			n.raft.Shutdown()
+			n.transport.Close()
+			n.raftLayer.Close()
+			n.listener.Close()
+			n.boltStore.Close()
+			return fmt.Errorf("failed to setup serf LAN: %w", err)
+		}
+
+		// 初始化 Autopilot（用于自动集群管理）
+		if err := n.setupAutopilot(); err != nil {
+			n.serfLAN.Shutdown()
+			n.rpcServer.Shutdown()
+			n.connPool.Shutdown()
+			n.raft.Shutdown()
+			n.transport.Close()
+			n.raftLayer.Close()
+			n.listener.Close()
+			n.boltStore.Close()
+			return fmt.Errorf("failed to setup autopilot: %w", err)
+		}
 	}
 
 	return nil
@@ -288,6 +337,102 @@ func (n *Node) setupConnPool() error {
 	return nil
 }
 
+// setupRPCServer 初始化 RPC 服务器 (不创建监听器，连接由主监听器路由)
+func (n *Node) setupRPCServer() error {
+	rpcServer, err := consul.NewRPCServer(&consul.RPCServerConfig{
+		Raft:           n.raft,
+		Logger:         n.hcLogger,
+		MaxConnections: 256,
+	})
+	if err != nil {
+		return err
+	}
+	n.rpcServer = rpcServer
+	return nil
+}
+
+// listen 处理主监听器上的连接，根据首字节路由到 Raft 或 RPC
+func (n *Node) listen() {
+	for {
+		conn, err := n.listener.Accept()
+		if err != nil {
+			n.mu.RLock()
+			closed := n.closed
+			n.mu.RUnlock()
+			if closed {
+				return
+			}
+			n.hcLogger.Error("failed to accept conn", "error", err)
+			continue
+		}
+
+		go n.handleConn(conn)
+	}
+}
+
+// handleConn 根据首字节确定连接类型并路由
+func (n *Node) handleConn(conn net.Conn) {
+	// 检查是否已关闭
+	n.mu.RLock()
+	closed := n.closed
+	n.mu.RUnlock()
+	if closed {
+		conn.Close()
+		return
+	}
+
+	// 设置读取超时，防止恶意客户端占用连接
+	if err := conn.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
+		n.hcLogger.Error("failed to set read deadline", "error", err)
+		conn.Close()
+		return
+	}
+
+	// 读取首字节确定连接类型
+	buf := make([]byte, 1)
+	if _, err := conn.Read(buf); err != nil {
+		if err != io.EOF && !strings.Contains(err.Error(), "closed") {
+			n.hcLogger.Error("failed to read byte", "error", err)
+		}
+		conn.Close()
+		return
+	}
+
+	// 重置 deadline，后续由各处理器自行管理
+	if err := conn.SetReadDeadline(time.Time{}); err != nil {
+		n.hcLogger.Error("failed to reset read deadline", "error", err)
+		conn.Close()
+		return
+	}
+
+	typ := pool.RPCType(buf[0])
+
+	switch typ {
+	case pool.RPCRaft:
+		// Raft 连接，交给 RaftLayer 处理
+		n.raftLayer.Handoff(conn)
+
+	case pool.RPCConsul:
+		// RPC 连接
+		n.rpcServer.HandleConn(conn)
+
+	case pool.RPCMultiplexV2:
+		// 多路复用 RPC 连接
+		n.rpcServer.HandleMultiplexV2(conn)
+
+	case pool.RPCTLS:
+		// TLS 连接，当前简单处理为普通 RPC
+		n.rpcServer.HandleConn(conn)
+
+	case pool.RPCTLSInsecure:
+		n.rpcServer.HandleConn(conn)
+
+	default:
+		n.hcLogger.Error("unrecognized RPC byte", "byte", typ)
+		conn.Close()
+	}
+}
+
 // setupSerfLAN 初始化 Serf LAN 集群
 func (n *Node) setupSerfLAN() error {
 	// 解析 Serf 绑定地址
@@ -306,6 +451,7 @@ func (n *Node) setupSerfLAN() error {
 	// 创建 SerfLAN 配置
 	serfConfig := &consul.SerfLANConfig{
 		NodeName:         n.getNodeName(),
+		NodeID:           n.nodeID, // Must match Raft server ID for bootstrap to work
 		Datacenter:       n.config.Datacenter,
 		BindAddr:         serfBindAddr,
 		BindPort:         serfBindPort,
@@ -504,6 +650,13 @@ func (n *Node) Close() error {
 		}
 	}
 
+	// 关闭 RPC 服务器
+	if n.rpcServer != nil {
+		if err := n.rpcServer.Shutdown(); err != nil {
+			n.log("error", "shutdown rpc server failed", "error", err)
+		}
+	}
+
 	// 关闭连接池
 	if n.connPool != nil {
 		n.connPool.Shutdown()
@@ -521,6 +674,20 @@ func (n *Node) Close() error {
 	if n.transport != nil {
 		if err := n.transport.Close(); err != nil {
 			n.log("error", "close transport failed", "error", err)
+		}
+	}
+
+	// 关闭 RaftLayer
+	if n.raftLayer != nil {
+		if err := n.raftLayer.Close(); err != nil {
+			n.log("error", "close raft layer failed", "error", err)
+		}
+	}
+
+	// 关闭主监听器
+	if n.listener != nil {
+		if err := n.listener.Close(); err != nil {
+			n.log("error", "close listener failed", "error", err)
 		}
 	}
 
@@ -739,6 +906,22 @@ func (n *Node) LeadershipTransfer() error {
 	}
 
 	future := n.raft.LeadershipTransfer()
+	return future.Error()
+}
+
+// Bootstrap 手动引导单节点集群
+// 当 ExpectNodes=0 时（跳过 Serf），需要调用此方法来引导集群
+func (n *Node) Bootstrap() error {
+	configuration := raft.Configuration{
+		Servers: []raft.Server{
+			{
+				ID:       raft.ServerID(n.nodeID),
+				Address:  raft.ServerAddress(n.config.BindAddr),
+				Suffrage: raft.Voter,
+			},
+		},
+	}
+	future := n.raft.BootstrapCluster(configuration)
 	return future.Error()
 }
 

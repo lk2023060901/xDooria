@@ -107,8 +107,10 @@ func (c *Config) Validate() error {
 		}
 	}
 
-	if c.ExpectNodes < 1 {
-		return fmt.Errorf("%w: expect_nodes must be at least 1", ErrInvalidConfig)
+	// ExpectNodes = 0 表示跳过 Serf/Autopilot 设置（单节点测试模式）
+	// ExpectNodes >= 1 表示启用 Serf 集群发现和自动 Bootstrap
+	if c.ExpectNodes < 0 {
+		return fmt.Errorf("%w: expect_nodes must be >= 0", ErrInvalidConfig)
 	}
 
 	if c.HeartbeatTimeout <= 0 {

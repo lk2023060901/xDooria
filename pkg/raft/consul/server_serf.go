@@ -6,6 +6,7 @@ package consul
 import (
 	"fmt"
 	"net"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -20,6 +21,14 @@ import (
 	"github.com/lk2023060901/xdooria/pkg/raft/consul/metadata"
 	"github.com/lk2023060901/xdooria/pkg/raft/consul/pool"
 )
+
+// createDirIfNotExist creates a directory if it doesn't exist
+func createDirIfNotExist(dir string) error {
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		return os.MkdirAll(dir, 0755)
+	}
+	return nil
+}
 
 const (
 	// StatusReap is used to update the status of a node if we
@@ -98,6 +107,9 @@ func (sl *ServerLookup) Servers() []*metadata.Server {
 type SerfLANConfig struct {
 	// NodeName is the name of the local node
 	NodeName string
+
+	// NodeID is the unique identifier for this node (should match Raft server ID)
+	NodeID string
 
 	// Datacenter is the name of the local datacenter
 	Datacenter string
@@ -228,17 +240,24 @@ func (sl *SerfLAN) setupSerfConfig() (*serf.Config, error) {
 	conf := libserf.DefaultConfig()
 	conf.Init()
 
-	conf.NodeName = sl.config.NodeName
+	// Use NodeID as the memberlist node name to avoid conflicts with memberlist's internal ID tracking
+	// memberlist v0.5.x uses the "id" tag internally, so we must ensure consistency
+	serfNodeName := sl.config.NodeID
+	if serfNodeName == "" {
+		serfNodeName = sl.config.NodeName // Fallback to NodeName if not set
+	}
+	conf.NodeName = serfNodeName
 	conf.Tags = map[string]string{
-		"role":     "consul",
-		"dc":       sl.config.Datacenter,
-		"port":     strconv.Itoa(sl.config.RaftPort),
-		"id":       sl.config.NodeName, // Use NodeName as ID
-		"vsn":      strconv.Itoa(sl.config.ProtocolVersion),
-		"vsn_min":  strconv.Itoa(protocolVersionMin),
-		"vsn_max":  strconv.Itoa(protocolVersionMax),
-		"raft_vsn": strconv.Itoa(sl.config.RaftVersion),
-		"build":    sl.config.Build,
+		"role":       "consul",
+		"dc":         sl.config.Datacenter,
+		"port":       strconv.Itoa(sl.config.RaftPort),
+		"id":         serfNodeName, // Must match memberlist node name
+		"node_name":  sl.config.NodeName, // Store original node name for display
+		"vsn":        strconv.Itoa(sl.config.ProtocolVersion),
+		"vsn_min":    strconv.Itoa(protocolVersionMin),
+		"vsn_max":    strconv.Itoa(protocolVersionMax),
+		"raft_vsn":   strconv.Itoa(sl.config.RaftVersion),
+		"build":      sl.config.Build,
 	}
 
 	if sl.config.Bootstrap {
@@ -273,10 +292,11 @@ func (sl *SerfLAN) setupSerfConfig() (*serf.Config, error) {
 	conf.RejoinAfterLeave = sl.config.RejoinAfterLeave
 
 	// Merge delegate for LAN
+	// Use serfNodeName (which is the NodeID/UUID) for validation
 	conf.Merge = &lanMergeDelegate{
 		dc:       sl.config.Datacenter,
-		nodeID:   sl.config.NodeName,
-		nodeName: sl.config.NodeName,
+		nodeID:   serfNodeName, // Use the same ID as serf node name
+		nodeName: serfNodeName, // Serf node name is now the UUID
 		logger:   sl.logger,
 	}
 
@@ -285,7 +305,11 @@ func (sl *SerfLAN) setupSerfConfig() (*serf.Config, error) {
 
 	// Set snapshot path
 	if sl.config.DataDir != "" {
-		conf.SnapshotPath = filepath.Join(sl.config.DataDir, "serf", "local.snapshot")
+		serfDir := filepath.Join(sl.config.DataDir, "serf")
+		if err := createDirIfNotExist(serfDir); err != nil {
+			return nil, fmt.Errorf("failed to create serf directory: %w", err)
+		}
+		conf.SnapshotPath = filepath.Join(serfDir, "local.snapshot")
 	}
 
 	conf.ReconnectTimeoutOverride = libserf.NewReconnectOverride(sl.logger)

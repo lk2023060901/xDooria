@@ -6,6 +6,7 @@ package pool
 import (
 	"fmt"
 	"io"
+	"net/rpc"
 	"strings"
 	"sync"
 
@@ -105,6 +106,55 @@ func CallWithCodec(codec ClientCodec, method string, args interface{}, reply int
 	}
 
 	return codec.ReadResponseBody(reply)
+}
+
+// MsgpackServerCodec implements rpc.ServerCodec using msgpack encoding
+type MsgpackServerCodec struct {
+	conn   io.ReadWriteCloser
+	enc    *codec.Encoder
+	dec    *codec.Decoder
+	closed bool
+	mu     sync.Mutex
+}
+
+// Ensure MsgpackServerCodec implements rpc.ServerCodec
+var _ rpc.ServerCodec = (*MsgpackServerCodec)(nil)
+
+// NewMsgpackServerCodec creates a new msgpack server codec
+func NewMsgpackServerCodec(conn io.ReadWriteCloser) *MsgpackServerCodec {
+	return &MsgpackServerCodec{
+		conn: conn,
+		enc:  codec.NewEncoder(conn, msgpackHandle),
+		dec:  codec.NewDecoder(conn, msgpackHandle),
+	}
+}
+
+func (c *MsgpackServerCodec) ReadRequestHeader(r *rpc.Request) error {
+	return c.dec.Decode(r)
+}
+
+func (c *MsgpackServerCodec) ReadRequestBody(body interface{}) error {
+	return c.dec.Decode(body)
+}
+
+func (c *MsgpackServerCodec) WriteResponse(r *rpc.Response, body interface{}) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if err := c.enc.Encode(r); err != nil {
+		return err
+	}
+	return c.enc.Encode(body)
+}
+
+func (c *MsgpackServerCodec) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.closed {
+		return nil
+	}
+	c.closed = true
+	return c.conn.Close()
 }
 
 // IsErrEOF returns true if we have an EOF-related error.

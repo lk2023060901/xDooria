@@ -129,59 +129,32 @@ func TestConfig_ToRaftConfig(t *testing.T) {
 	assert.Equal(t, "DEBUG", raftCfg.LogLevel)
 }
 
-func TestParsePeers(t *testing.T) {
-	tests := []struct {
-		name    string
-		peers   []string
-		want    []Peer
-		wantErr bool
-		errMsg  string
-	}{
-		{
-			name:  "valid peers",
-			peers: []string{"node1=127.0.0.1:7001", "node2=127.0.0.1:7002"},
-			want: []Peer{
-				{ID: "node1", Address: "127.0.0.1:7001"},
-				{ID: "node2", Address: "127.0.0.1:7002"},
-			},
-			wantErr: false,
-		},
-		{
-			name:    "empty peers",
-			peers:   []string{},
-			want:    []Peer{},
-			wantErr: false,
-		},
-		{
-			name:    "invalid format - no equals",
-			peers:   []string{"node1:127.0.0.1:7001"},
-			wantErr: true,
-			errMsg:  "invalid peer format",
-		},
-		{
-			name:    "invalid format - no port",
-			peers:   []string{"node1=127.0.0.1"},
-			wantErr: true,
-			errMsg:  "invalid peer address",
-		},
-		{
-			name:    "invalid format - empty",
-			peers:   []string{""},
-			wantErr: true,
-			errMsg:  "invalid peer format",
-		},
-	}
+func TestConfig_SerfConfig(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.NodeName = "test-node"
+	cfg.Datacenter = "dc1"
+	cfg.SerfLANAddr = "127.0.0.1:8301"
+	cfg.JoinAddrs = []string{"127.0.0.1:8302", "127.0.0.1:8303"}
+	cfg.ExpectNodes = 3
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := ParsePeers(tt.peers)
-			if tt.wantErr {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMsg)
-			} else {
-				require.NoError(t, err)
-				assert.Equal(t, tt.want, got)
-			}
-		})
-	}
+	assert.Equal(t, "test-node", cfg.NodeName)
+	assert.Equal(t, "dc1", cfg.Datacenter)
+	assert.Equal(t, "127.0.0.1:8301", cfg.SerfLANAddr)
+	assert.Equal(t, []string{"127.0.0.1:8302", "127.0.0.1:8303"}, cfg.JoinAddrs)
+	assert.Equal(t, 3, cfg.ExpectNodes)
+}
+
+func TestConfig_TLSConfig(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.TLSEnabled = true
+	cfg.TLSCAFile = "/path/to/ca.pem"
+	cfg.TLSCertFile = "/path/to/cert.pem"
+	cfg.TLSKeyFile = "/path/to/key.pem"
+	cfg.TLSVerify = true
+
+	assert.True(t, cfg.TLSEnabled)
+	assert.Equal(t, "/path/to/ca.pem", cfg.TLSCAFile)
+	assert.Equal(t, "/path/to/cert.pem", cfg.TLSCertFile)
+	assert.Equal(t, "/path/to/key.pem", cfg.TLSKeyFile)
+	assert.True(t, cfg.TLSVerify)
 }
