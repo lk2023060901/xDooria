@@ -12,10 +12,24 @@ import (
 // Config Raft 配置
 type Config struct {
 	// 网络配置
-	BindAddr string `mapstructure:"bind_addr"` // 绑定地址 (host:port)
+	BindAddr string `mapstructure:"bind_addr"` // Raft 绑定地址 (host:port)
 
 	// 数据目录
 	DataDir string `mapstructure:"data_dir"` // 数据存储目录
+
+	// Gossip/Serf 配置
+	SerfLANAddr  string   `mapstructure:"serf_lan_addr"`  // Serf LAN 绑定地址 (host:port)，默认使用 BindAddr 的 host + 7946
+	JoinAddrs    []string `mapstructure:"join_addrs"`     // 加入集群的种子节点地址列表
+	NodeName     string   `mapstructure:"node_name"`      // 节点名称，默认使用主机名
+	Datacenter   string   `mapstructure:"datacenter"`     // 数据中心名称，默认 "dc1"
+	ExpectNodes  int      `mapstructure:"expect_nodes"`   // 期望的节点数量，用于首次启动时自动 Bootstrap
+
+	// TLS 配置
+	TLSEnabled   bool   `mapstructure:"tls_enabled"`   // 是否启用 TLS
+	TLSCAFile    string `mapstructure:"tls_ca_file"`   // CA 证书文件路径
+	TLSCertFile  string `mapstructure:"tls_cert_file"` // 服务器证书文件路径
+	TLSKeyFile   string `mapstructure:"tls_key_file"`  // 服务器私钥文件路径
+	TLSVerify    bool   `mapstructure:"tls_verify"`    // 是否验证对端证书
 
 	// 超时配置
 	HeartbeatTimeout   time.Duration `mapstructure:"heartbeat_timeout"`    // 心跳超时
@@ -44,6 +58,12 @@ func DefaultConfig() *Config {
 	return &Config{
 		BindAddr:           "127.0.0.1:7000",
 		DataDir:            "./raft-data",
+		SerfLANAddr:        "", // 默认留空，将自动计算
+		JoinAddrs:          nil,
+		NodeName:           "", // 默认留空，将使用主机名
+		Datacenter:         "dc1",
+		ExpectNodes:        1,
+		TLSEnabled:         false,
 		HeartbeatTimeout:   1000 * time.Millisecond,
 		ElectionTimeout:    1000 * time.Millisecond,
 		CommitTimeout:      50 * time.Millisecond,
@@ -71,6 +91,24 @@ func (c *Config) Validate() error {
 
 	if c.DataDir == "" {
 		return fmt.Errorf("%w: data_dir is required", ErrInvalidConfig)
+	}
+
+	// 验证 Serf 地址格式（如果指定）
+	if c.SerfLANAddr != "" {
+		if _, _, err := net.SplitHostPort(c.SerfLANAddr); err != nil {
+			return fmt.Errorf("%w: invalid serf_lan_addr: %v", ErrInvalidConfig, err)
+		}
+	}
+
+	// 验证 TLS 配置
+	if c.TLSEnabled {
+		if c.TLSCertFile == "" || c.TLSKeyFile == "" {
+			return fmt.Errorf("%w: tls_cert_file and tls_key_file are required when TLS is enabled", ErrInvalidConfig)
+		}
+	}
+
+	if c.ExpectNodes < 1 {
+		return fmt.Errorf("%w: expect_nodes must be at least 1", ErrInvalidConfig)
 	}
 
 	if c.HeartbeatTimeout <= 0 {
