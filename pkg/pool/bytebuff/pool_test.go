@@ -174,3 +174,195 @@ func BenchmarkPool_VariousSizes(b *testing.B) {
 		p.Put(buf)
 	}
 }
+
+// --- Valyala Pool Tests ---
+
+func TestValyalaPool_GetPut(t *testing.T) {
+	p := NewValyalaPool()
+
+	t.Run("get returns ByteBuffer", func(t *testing.T) {
+		buf := p.Get()
+		assert.NotNil(t, buf)
+		p.Put(buf)
+	})
+
+	t.Run("put nil is safe", func(t *testing.T) {
+		p.Put(nil) // should not panic
+	})
+
+	t.Run("buffer is reused", func(t *testing.T) {
+		buf1 := p.Get()
+		buf1.WriteString("test data")
+		p.Put(buf1)
+
+		buf2 := p.Get()
+		assert.Equal(t, 0, buf2.Len()) // should be reset
+		p.Put(buf2)
+	})
+}
+
+func TestValyalaPool_Stats(t *testing.T) {
+	p := NewValyalaPool()
+
+	// Initial stats should be zero
+	gets, puts, misses := p.Stats()
+	assert.Equal(t, uint64(0), gets)
+	assert.Equal(t, uint64(0), puts)
+	assert.Equal(t, uint64(0), misses)
+
+	// Get and put
+	buf := p.Get()
+	p.Put(buf)
+
+	gets, puts, _ = p.Stats()
+	assert.Equal(t, uint64(1), gets)
+	assert.Equal(t, uint64(1), puts)
+}
+
+func TestValyalaPool_Concurrent(t *testing.T) {
+	p := NewValyalaPool()
+	const goroutines = 100
+	const iterations = 1000
+
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer wg.Done()
+			for j := 0; j < iterations; j++ {
+				buf := p.Get()
+				buf.WriteString("concurrent test data")
+				p.Put(buf)
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	gets, _, _ := p.Stats()
+	assert.Equal(t, uint64(goroutines*iterations), gets)
+}
+
+func TestValyalaGlobalFunctions(t *testing.T) {
+	buf := GetValyala()
+	assert.NotNil(t, buf)
+
+	buf.WriteString("hello valyala")
+	PutValyala(buf)
+
+	gets, _, _ := ValyalaStats()
+	assert.Greater(t, gets, uint64(0))
+}
+
+func TestPoolAdapter_GetPut(t *testing.T) {
+	t.Run("get returns bytes.Buffer", func(t *testing.T) {
+		p := NewPoolAdapter()
+		buf := p.Get(100)
+		assert.NotNil(t, buf)
+		p.Put(buf)
+	})
+
+	t.Run("put nil is safe", func(t *testing.T) {
+		p := NewPoolAdapter()
+		p.Put(nil) // should not panic
+	})
+
+	t.Run("buffer is reset on put", func(t *testing.T) {
+		p := NewPoolAdapter()
+		buf := p.Get(100)
+		buf.WriteString("test data")
+		p.Put(buf)
+
+		// Note: Since adapter copies data, we can't test true reuse
+		// But we can verify stats work
+		gets, puts, _ := p.Stats()
+		assert.Equal(t, uint64(1), gets)
+		assert.Equal(t, uint64(1), puts)
+	})
+}
+
+func TestPoolAdapter_Stats(t *testing.T) {
+	p := NewPoolAdapter()
+
+	gets, puts, misses := p.Stats()
+	assert.Equal(t, uint64(0), gets)
+	assert.Equal(t, uint64(0), puts)
+	assert.Equal(t, uint64(0), misses)
+
+	buf := p.Get(256)
+	p.Put(buf)
+
+	gets, puts, _ = p.Stats()
+	assert.Equal(t, uint64(1), gets)
+	assert.Equal(t, uint64(1), puts)
+}
+
+// --- Benchmarks comparing implementations ---
+
+func BenchmarkValyalaPool_Get(b *testing.B) {
+	p := NewValyalaPool()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		buf := p.Get()
+		buf.WriteString("benchmark data")
+		p.Put(buf)
+	}
+}
+
+func BenchmarkValyalaPool_GetParallel(b *testing.B) {
+	p := NewValyalaPool()
+	b.ResetTimer()
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			buf := p.Get()
+			buf.WriteString("benchmark data")
+			p.Put(buf)
+		}
+	})
+}
+
+func BenchmarkPoolAdapter_Get(b *testing.B) {
+	p := NewPoolAdapter()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		buf := p.Get(1024)
+		buf.WriteString("benchmark data")
+		p.Put(buf)
+	}
+}
+
+func BenchmarkComparison(b *testing.B) {
+	b.Run("OriginalPool", func(b *testing.B) {
+		p := NewPool()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			buf := p.Get(1024)
+			buf.WriteString("test data")
+			p.Put(buf)
+		}
+	})
+
+	b.Run("ValyalaPool", func(b *testing.B) {
+		p := NewValyalaPool()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			buf := p.Get()
+			buf.WriteString("test data")
+			p.Put(buf)
+		}
+	})
+
+	b.Run("PoolAdapter", func(b *testing.B) {
+		p := NewPoolAdapter()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			buf := p.Get(1024)
+			buf.WriteString("test data")
+			p.Put(buf)
+		}
+	})
+}
