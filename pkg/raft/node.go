@@ -7,13 +7,20 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-raftchunking"
 	"github.com/hashicorp/raft"
+	autopilotlib "github.com/hashicorp/raft-autopilot"
 	raftboltdb "github.com/hashicorp/raft-boltdb/v2"
+
 	"github.com/lk2023060901/xdooria/pkg/logger"
+	"github.com/lk2023060901/xdooria/pkg/raft/consul"
+	"github.com/lk2023060901/xdooria/pkg/raft/consul/pool"
+	"github.com/lk2023060901/xdooria/pkg/raft/consul/tlsutil"
 )
 
 // NodeState 节点状态
@@ -65,16 +72,33 @@ type Node struct {
 	// 传输
 	transport *raft.NetworkTransport
 
+	// Serf/Gossip 集群发现
+	serfLAN *consul.SerfLAN
+
+	// Autopilot 自动集群管理
+	autopilot *consul.Autopilot
+
+	// 连接池
+	connPool *pool.ConnPool
+
+	// TLS 配置器
+	tlsConfigurator *tlsutil.Configurator
+
 	// 状态
 	mu         sync.RWMutex
 	closed     bool
 	shutdownCh chan struct{}
 
 	// 选项
-	logger logger.Logger
+	logger   logger.Logger
+	hcLogger hclog.Logger // hashicorp 风格的 logger
 
 	// Leader 变更通知
 	leaderCh <-chan bool
+
+	// Autopilot 上下文
+	autopilotCtx    context.Context
+	autopilotCancel context.CancelFunc
 }
 
 // NewNode 创建 Raft 节点
@@ -123,6 +147,13 @@ func (n *Node) setup() error {
 	if err := os.MkdirAll(n.config.DataDir, 0755); err != nil {
 		return fmt.Errorf("failed to create data dir: %w", err)
 	}
+
+	// 创建 hclog logger
+	n.hcLogger = hclog.New(&hclog.LoggerOptions{
+		Name:   "raft",
+		Level:  hclog.LevelFromString(n.config.LogLevel),
+		Output: os.Stderr,
+	})
 
 	// 创建 BoltDB 存储（同时用于 LogStore 和 StableStore）
 	boltPath := filepath.Join(n.config.DataDir, "raft.db")
@@ -179,9 +210,246 @@ func (n *Node) setup() error {
 	n.raft = r
 	n.leaderCh = r.LeaderCh()
 
-	// 注意：集群 Bootstrap 将由 Gossip/Autopilot 自动处理
+	// 初始化 TLS 配置器
+	if err := n.setupTLS(); err != nil {
+		n.raft.Shutdown()
+		transport.Close()
+		boltStore.Close()
+		return fmt.Errorf("failed to setup TLS: %w", err)
+	}
+
+	// 初始化连接池
+	if err := n.setupConnPool(); err != nil {
+		n.raft.Shutdown()
+		transport.Close()
+		boltStore.Close()
+		return fmt.Errorf("failed to setup connection pool: %w", err)
+	}
+
+	// 初始化 Serf LAN（用于节点发现和自动 Bootstrap）
+	if err := n.setupSerfLAN(); err != nil {
+		n.connPool.Shutdown()
+		n.raft.Shutdown()
+		transport.Close()
+		boltStore.Close()
+		return fmt.Errorf("failed to setup serf LAN: %w", err)
+	}
+
+	// 初始化 Autopilot（用于自动集群管理）
+	if err := n.setupAutopilot(); err != nil {
+		n.serfLAN.Shutdown()
+		n.connPool.Shutdown()
+		n.raft.Shutdown()
+		transport.Close()
+		boltStore.Close()
+		return fmt.Errorf("failed to setup autopilot: %w", err)
+	}
 
 	return nil
+}
+
+// setupTLS 初始化 TLS 配置器
+func (n *Node) setupTLS() error {
+	tlsConfig := tlsutil.Config{
+		VerifyIncoming:       n.config.TLSVerify,
+		VerifyOutgoing:       n.config.TLSVerify,
+		VerifyServerHostname: n.config.TLSVerify,
+		CAFile:               n.config.TLSCAFile,
+		CertFile:             n.config.TLSCertFile,
+		KeyFile:              n.config.TLSKeyFile,
+		NodeName:             n.getNodeName(),
+		Datacenter:           n.config.Datacenter,
+		InternalRPC: tlsutil.ProtocolConfig{
+			VerifyIncoming: n.config.TLSVerify,
+			VerifyOutgoing: n.config.TLSEnabled,
+			CAFile:         n.config.TLSCAFile,
+			CertFile:       n.config.TLSCertFile,
+			KeyFile:        n.config.TLSKeyFile,
+		},
+	}
+
+	configurator, err := tlsutil.NewConfigurator(tlsConfig)
+	if err != nil {
+		return err
+	}
+	n.tlsConfigurator = configurator
+	return nil
+}
+
+// setupConnPool 初始化连接池
+func (n *Node) setupConnPool() error {
+	n.connPool = &pool.ConnPool{
+		Datacenter:      n.config.Datacenter,
+		MaxStreams:      n.config.MaxPool,
+		MaxTime:         10 * time.Minute,
+		TLSConfigurator: n.tlsConfigurator,
+		Server:          true,
+	}
+	return nil
+}
+
+// setupSerfLAN 初始化 Serf LAN 集群
+func (n *Node) setupSerfLAN() error {
+	// 解析 Serf 绑定地址
+	serfBindAddr, serfBindPort, err := n.getSerfBindAddr()
+	if err != nil {
+		return err
+	}
+
+	// 解析 Raft 地址
+	raftHost, raftPortStr, err := net.SplitHostPort(n.config.BindAddr)
+	if err != nil {
+		return fmt.Errorf("invalid raft bind addr: %w", err)
+	}
+	raftPort, _ := strconv.Atoi(raftPortStr)
+
+	// 创建 SerfLAN 配置
+	serfConfig := &consul.SerfLANConfig{
+		NodeName:         n.getNodeName(),
+		Datacenter:       n.config.Datacenter,
+		BindAddr:         serfBindAddr,
+		BindPort:         serfBindPort,
+		RaftAddr:         n.config.BindAddr,
+		RaftPort:         raftPort,
+		Bootstrap:        false, // 使用 BootstrapExpect 自动 bootstrap
+		BootstrapExpect:  n.config.ExpectNodes,
+		ReadReplica:      false,
+		UseTLS:           n.config.TLSEnabled,
+		Build:            "1.0.0",
+		ProtocolVersion:  3,
+		RaftVersion:      3,
+		DataDir:          n.config.DataDir,
+		RejoinAfterLeave: true,
+		Logger:           n.hcLogger,
+	}
+
+	// 如果 Raft 地址的 host 不是绑定地址，使用它作为广播地址
+	if raftHost != "" && raftHost != "0.0.0.0" {
+		serfConfig.BindAddr = raftHost
+	}
+
+	// 创建 StatsFetcher
+	statsFetcher := consul.NewStatsFetcher(n.hcLogger.Named("stats_fetcher"), n.connPool, n.config.Datacenter)
+
+	// 创建 SerfLAN
+	serfLAN, err := consul.NewSerfLAN(serfConfig, n.raft, n.logStore, n.connPool, n.IsLeader)
+	if err != nil {
+		return err
+	}
+	n.serfLAN = serfLAN
+
+	// 加入种子节点
+	if len(n.config.JoinAddrs) > 0 {
+		go func() {
+			// 等待一小段时间让本地 Serf 初始化完成
+			time.Sleep(100 * time.Millisecond)
+			joined, err := n.serfLAN.Join(n.config.JoinAddrs)
+			if err != nil {
+				n.log("warn", "failed to join some nodes", "joined", joined, "error", err)
+			} else {
+				n.log("info", "joined cluster", "joined", joined)
+			}
+		}()
+	}
+
+	// 保存 statsFetcher 供 autopilot 使用（通过闭包）
+	_ = statsFetcher
+
+	return nil
+}
+
+// setupAutopilot 初始化 Autopilot
+func (n *Node) setupAutopilot() error {
+	// 创建 StatsFetcher
+	statsFetcher := consul.NewStatsFetcher(n.hcLogger.Named("stats_fetcher"), n.connPool, n.config.Datacenter)
+
+	// 创建 Autopilot 配置
+	autopilotConfig := consul.DefaultAutopilotConfig()
+
+	// 创建 Autopilot
+	ap, err := consul.NewAutopilot(consul.AutopilotOptions{
+		Config:       autopilotConfig,
+		Raft:         n.raft,
+		SerfLAN:      n.serfLAN,
+		StatsFetcher: statsFetcher,
+		Logger:       n.hcLogger,
+		RemoveFailedServerFunc: func(serverID string, serverName string) error {
+			n.log("info", "removing failed server", "id", serverID, "name", serverName)
+			future := n.raft.RemoveServer(raft.ServerID(serverID), 0, 0)
+			return future.Error()
+		},
+		StateNotifyFunc: func(state *autopilotlib.State) {
+			if state.Healthy {
+				n.log("debug", "cluster healthy", "failure_tolerance", state.FailureTolerance)
+			} else {
+				n.log("warn", "cluster unhealthy", "failure_tolerance", state.FailureTolerance)
+			}
+		},
+	})
+	if err != nil {
+		return err
+	}
+	n.autopilot = ap
+
+	// 创建 Autopilot 上下文
+	n.autopilotCtx, n.autopilotCancel = context.WithCancel(context.Background())
+
+	// 启动 Autopilot
+	n.autopilot.Start(n.autopilotCtx)
+
+	// 当成为 Leader 时启用 Autopilot 的 Raft 调和
+	go n.watchLeadershipForAutopilot()
+
+	return nil
+}
+
+// watchLeadershipForAutopilot 监听 leadership 变化，控制 Autopilot 调和
+func (n *Node) watchLeadershipForAutopilot() {
+	for {
+		select {
+		case <-n.shutdownCh:
+			return
+		case isLeader := <-n.leaderCh:
+			if isLeader {
+				n.log("info", "became leader, enabling autopilot reconciliation")
+				n.autopilot.EnableReconciliation()
+			} else {
+				n.log("info", "lost leadership, disabling autopilot reconciliation")
+				n.autopilot.DisableReconciliation()
+			}
+		}
+	}
+}
+
+// getSerfBindAddr 获取 Serf 绑定地址
+func (n *Node) getSerfBindAddr() (string, int, error) {
+	if n.config.SerfLANAddr != "" {
+		host, portStr, err := net.SplitHostPort(n.config.SerfLANAddr)
+		if err != nil {
+			return "", 0, fmt.Errorf("invalid serf_lan_addr: %w", err)
+		}
+		port, err := strconv.Atoi(portStr)
+		if err != nil {
+			return "", 0, fmt.Errorf("invalid serf port: %w", err)
+		}
+		return host, port, nil
+	}
+
+	// 默认使用 Raft 地址的 host + 8301 端口（Consul 默认 Serf LAN 端口）
+	host, _, err := net.SplitHostPort(n.config.BindAddr)
+	if err != nil {
+		return "", 0, fmt.Errorf("invalid bind_addr: %w", err)
+	}
+	return host, 8301, nil
+}
+
+// getNodeName 获取节点名称
+func (n *Node) getNodeName() string {
+	if n.config.NodeName != "" {
+		return n.config.NodeName
+	}
+	// 使用节点 ID 作为名称
+	return n.nodeID
 }
 
 // Start 启动节点（节点在 NewNode 时已经启动，此方法主要用于等待就绪）
@@ -220,6 +488,26 @@ func (n *Node) Close() error {
 	n.closed = true
 	close(n.shutdownCh)
 	n.mu.Unlock()
+
+	// 停止 Autopilot
+	if n.autopilotCancel != nil {
+		n.autopilotCancel()
+	}
+
+	// 优雅离开 Serf 集群
+	if n.serfLAN != nil {
+		if err := n.serfLAN.Leave(); err != nil {
+			n.log("error", "serf leave failed", "error", err)
+		}
+		if err := n.serfLAN.Shutdown(); err != nil {
+			n.log("error", "shutdown serf failed", "error", err)
+		}
+	}
+
+	// 关闭连接池
+	if n.connPool != nil {
+		n.connPool.Shutdown()
+	}
 
 	// 关闭 Raft
 	if n.raft != nil {
@@ -452,4 +740,65 @@ func (n *Node) LeadershipTransfer() error {
 
 	future := n.raft.LeadershipTransfer()
 	return future.Error()
+}
+
+// Join 加入集群（通过 Serf gossip）
+func (n *Node) Join(addrs []string) (int, error) {
+	if n.serfLAN == nil {
+		return 0, fmt.Errorf("serf not initialized")
+	}
+	return n.serfLAN.Join(addrs)
+}
+
+// Members 返回集群成员列表
+func (n *Node) Members() []ClusterMember {
+	if n.serfLAN == nil {
+		return nil
+	}
+
+	serfMembers := n.serfLAN.Members()
+	members := make([]ClusterMember, 0, len(serfMembers))
+	for _, m := range serfMembers {
+		members = append(members, ClusterMember{
+			Name:   m.Name,
+			Addr:   m.Addr.String(),
+			Port:   int(m.Port),
+			Status: m.Status.String(),
+			Tags:   m.Tags,
+		})
+	}
+	return members
+}
+
+// ClusterMember 集群成员信息
+type ClusterMember struct {
+	Name   string
+	Addr   string
+	Port   int
+	Status string
+	Tags   map[string]string
+}
+
+// NumNodes 返回集群节点数量
+func (n *Node) NumNodes() int {
+	if n.serfLAN == nil {
+		return 0
+	}
+	return n.serfLAN.NumNodes()
+}
+
+// IsClusterHealthy 检查集群是否健康
+func (n *Node) IsClusterHealthy() bool {
+	if n.autopilot == nil {
+		return false
+	}
+	return n.autopilot.IsHealthy()
+}
+
+// ClusterFailureTolerance 返回集群容错能力（可以失去多少个节点仍保持正常）
+func (n *Node) ClusterFailureTolerance() int {
+	if n.autopilot == nil {
+		return 0
+	}
+	return n.autopilot.FailureTolerance()
 }
