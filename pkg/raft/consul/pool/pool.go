@@ -16,13 +16,8 @@ import (
 
 	"github.com/hashicorp/yamux"
 
-	msgpackrpc "github.com/hashicorp/consul-net-rpc/net-rpc-msgpackrpc"
-	"github.com/hashicorp/consul-net-rpc/net/rpc"
-
-	"github.com/hashicorp/consul/agent/structs"
-	"github.com/hashicorp/consul/lib"
-	"github.com/hashicorp/consul/proto/private/pbcommon"
-	"github.com/hashicorp/consul/tlsutil"
+	"github.com/lk2023060901/xdooria/pkg/raft/consul/structs"
+	"github.com/lk2023060901/xdooria/pkg/raft/consul/tlsutil"
 )
 
 const DefaultDialTimeout = 10 * time.Second
@@ -33,10 +28,10 @@ type muxSession interface {
 	Close() error
 }
 
-// streamClient is used to wrap a stream with an RPC client
+// StreamClient is used to wrap a stream with an RPC client
 type StreamClient struct {
 	stream net.Conn
-	codec  rpc.ClientCodec
+	codec  ClientCodec
 }
 
 func (sc *StreamClient) Close() {
@@ -84,13 +79,13 @@ func (c *Conn) getClient() (*StreamClient, error) {
 		return nil, err
 	}
 
-	// Create the RPC client
-	codec := msgpackrpc.NewCodecFromHandle(true, true, stream, structs.MsgpackHandle)
+	// Create the RPC client using our msgpack codec
+	rpcCodec := NewMsgpackClientCodec(stream)
 
 	// Return a new stream client
 	sc := &StreamClient{
 		stream: stream,
-		codec:  codec,
+		codec:  rpcCodec,
 	}
 	return sc, nil
 }
@@ -597,15 +592,14 @@ func (p *ConnPool) rpcInsecure(dc string, addr net.Addr, method string, args int
 		return fmt.Errorf("insecure dialing prohibited between datacenters")
 	}
 
-	var codec rpc.ClientCodec
 	conn, _, err := p.dial(dc, addr, 0, RPCTLSInsecure)
 	if err != nil {
 		return fmt.Errorf("rpcinsecure: error establishing connection: %w", err)
 	}
-	codec = msgpackrpc.NewCodecFromHandle(true, true, conn, structs.MsgpackHandle)
+	rpcCodec := NewMsgpackClientCodec(conn)
 
 	// Make the RPC call
-	err = msgpackrpc.CallWithCodec(codec, method, args, reply)
+	err = CallWithCodec(rpcCodec, method, args, reply)
 	if err != nil {
 		return fmt.Errorf("rpcinsecure: error making call: %w", err)
 	}
@@ -622,7 +616,6 @@ type BlockableQuery interface {
 }
 
 var _ BlockableQuery = (*structs.QueryOptions)(nil)
-var _ BlockableQuery = (*pbcommon.QueryOptions)(nil)
 
 func (p *ConnPool) rpc(dc string, nodeName string, addr net.Addr, method string, args interface{}, reply interface{}) error {
 	p.once.Do(p.init)
@@ -651,7 +644,7 @@ func (p *ConnPool) rpc(dc string, nodeName string, addr net.Addr, method string,
 	}
 
 	// Make the RPC call
-	err = msgpackrpc.CallWithCodec(sc.codec, method, args, reply)
+	err = CallWithCodec(sc.codec, method, args, reply)
 	if err != nil {
 		sc.Close()
 
@@ -659,7 +652,7 @@ func (p *ConnPool) rpc(dc string, nodeName string, addr net.Addr, method string,
 		// about how we found this. The tldr is that if we see this
 		// error, we know this connection is toast, so we should clear
 		// it and make a new one on the next attempt.
-		if lib.IsErrEOF(err) {
+		if IsErrEOF(err) {
 			p.clearConn(conn)
 		}
 
