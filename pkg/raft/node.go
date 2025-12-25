@@ -985,3 +985,53 @@ func (n *Node) ClusterFailureTolerance() int {
 	}
 	return n.autopilot.FailureTolerance()
 }
+
+// AddVoter 添加一个投票节点到集群
+// serverID: 节点 ID
+// address: 节点地址 (host:port)
+// prevIndex: 用于检测过时请求，传 0 表示不检查
+// timeout: 操作超时时间
+func (n *Node) AddVoter(serverID string, address string, prevIndex uint64, timeout time.Duration) error {
+	if n.raft == nil {
+		return ErrNotStarted
+	}
+	future := n.raft.AddVoter(raft.ServerID(serverID), raft.ServerAddress(address), prevIndex, timeout)
+	return future.Error()
+}
+
+// AddNonvoter 添加一个非投票节点（只读副本）到集群
+// serverID: 节点 ID
+// address: 节点地址 (host:port)
+// prevIndex: 用于检测过时请求，传 0 表示不检查
+// timeout: 操作超时时间
+func (n *Node) AddNonvoter(serverID string, address string, prevIndex uint64, timeout time.Duration) error {
+	if n.raft == nil {
+		return ErrNotStarted
+	}
+	future := n.raft.AddNonvoter(raft.ServerID(serverID), raft.ServerAddress(address), prevIndex, timeout)
+	return future.Error()
+}
+
+// RemoveServer 从集群中移除一个节点
+// serverID: 要移除的节点 ID
+// prevIndex: 用于检测过时请求，传 0 表示不检查
+// timeout: 操作超时时间
+func (n *Node) RemoveServer(serverID string, prevIndex uint64, timeout time.Duration) error {
+	if n.raft == nil {
+		return ErrNotStarted
+	}
+	future := n.raft.RemoveServer(raft.ServerID(serverID), prevIndex, timeout)
+	return future.Error()
+}
+
+// DemoteVoter 将投票节点降级为非投票节点
+// serverID: 节点 ID
+// prevIndex: 用于检测过时请求，传 0 表示不检查
+// timeout: 操作超时时间
+func (n *Node) DemoteVoter(serverID string, prevIndex uint64, timeout time.Duration) error {
+	if n.raft == nil {
+		return ErrNotStarted
+	}
+	future := n.raft.DemoteVoter(raft.ServerID(serverID), prevIndex, timeout)
+	return future.Error()
+}

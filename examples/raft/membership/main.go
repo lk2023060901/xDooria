@@ -73,12 +73,12 @@ func (s *kvStore) Len() int {
 
 // createNode 创建一个 Raft 节点
 // NodeID 会自动生成并持久化到 data_dir/node-id 文件
-func createNode(log logger.Logger, dataSubDir string, port int, bootstrap bool) (*raft.Node, *kvStore, error) {
+func createNode(log logger.Logger, dataSubDir string, port int) (*raft.Node, *kvStore, error) {
 	store := newKVStore()
 	cfg := &raft.Config{
 		BindAddr:           fmt.Sprintf("127.0.0.1:%d", port),
 		DataDir:            fmt.Sprintf("./raft-membership-data/%s", dataSubDir),
-		Bootstrap:          bootstrap,
+		ExpectNodes:        0, // 跳过 Serf，手动管理集群
 		HeartbeatTimeout:   200 * time.Millisecond,
 		ElectionTimeout:    200 * time.Millisecond,
 		CommitTimeout:      10 * time.Millisecond,
@@ -135,7 +135,7 @@ func main() {
 	log.Info("")
 	log.Info("Step 1: Starting with single node cluster...")
 
-	node1, store1, err := createNode(log, "node1", 19001, true)
+	node1, store1, err := createNode(log, "node1", 19001)
 	if err != nil {
 		log.Error("failed to create node1", "error", err)
 		os.Exit(1)
@@ -148,6 +148,11 @@ func main() {
 		os.Exit(1)
 	}
 	cancel()
+
+	// Bootstrap node1 作为初始集群
+	if err := node1.Bootstrap(); err != nil {
+		log.Warn("bootstrap failed", "error", err)
+	}
 
 	log.Info("node1 started", "state", node1.State())
 	printConfiguration(log, node1)
@@ -167,12 +172,19 @@ func main() {
 	log.Info("")
 	log.Info("Step 2: Adding node2 to cluster...")
 
-	node2, store2, err := createNode(log, "node2", 19002, false)
+	node2, store2, err := createNode(log, "node2", 19002)
 	if err != nil {
 		log.Error("failed to create node2", "error", err)
 		os.Exit(1)
 	}
 	defer node2.Close()
+
+	// 启动 node2
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 10*time.Second)
+	if err := node2.Start(ctx2); err != nil {
+		log.Error("failed to start node2", "error", err)
+	}
+	cancel2()
 
 	if err := node1.AddVoter(node2.NodeID(), "127.0.0.1:19002", 0, 5*time.Second); err != nil {
 		log.Error("failed to add node2", "error", err)
@@ -188,12 +200,19 @@ func main() {
 	log.Info("")
 	log.Info("Step 3: Adding node3 to cluster...")
 
-	node3, store3, err := createNode(log, "node3", 19003, false)
+	node3, store3, err := createNode(log, "node3", 19003)
 	if err != nil {
 		log.Error("failed to create node3", "error", err)
 		os.Exit(1)
 	}
 	defer node3.Close()
+
+	// 启动 node3
+	ctx3, cancel3 := context.WithTimeout(context.Background(), 10*time.Second)
+	if err := node3.Start(ctx3); err != nil {
+		log.Error("failed to start node3", "error", err)
+	}
+	cancel3()
 
 	if err := node1.AddVoter(node3.NodeID(), "127.0.0.1:19003", 0, 5*time.Second); err != nil {
 		log.Error("failed to add node3", "error", err)
@@ -229,12 +248,19 @@ func main() {
 	log.Info("")
 	log.Info("Step 5: Adding node4 as non-voter (read replica)...")
 
-	node4, store4, err := createNode(log, "node4", 19004, false)
+	node4, store4, err := createNode(log, "node4", 19004)
 	if err != nil {
 		log.Error("failed to create node4", "error", err)
 		os.Exit(1)
 	}
 	defer node4.Close()
+
+	// 启动 node4
+	ctx4, cancel4 := context.WithTimeout(context.Background(), 10*time.Second)
+	if err := node4.Start(ctx4); err != nil {
+		log.Error("failed to start node4", "error", err)
+	}
+	cancel4()
 
 	if err := node1.AddNonvoter(node4.NodeID(), "127.0.0.1:19004", 0, 5*time.Second); err != nil {
 		log.Error("failed to add node4 as nonvoter", "error", err)

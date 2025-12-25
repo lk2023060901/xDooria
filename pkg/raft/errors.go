@@ -19,6 +19,9 @@ var (
 	// ErrNodeNotReady 节点未就绪
 	ErrNodeNotReady = errors.New("raft: node not ready")
 
+	// ErrNotStarted 节点未启动
+	ErrNotStarted = errors.New("raft: node not started")
+
 	// ErrApplyTimeout 应用命令超时
 	ErrApplyTimeout = errors.New("raft: apply timeout")
 

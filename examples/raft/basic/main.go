@@ -126,7 +126,7 @@ func main() {
 	cfg := &raft.Config{
 		BindAddr:           *bindAddr,
 		DataDir:            *dataDir,
-		Bootstrap:          *bootstrap,
+		ExpectNodes:        0, // 跳过 Serf，手动管理集群
 		HeartbeatTimeout:   1000 * time.Millisecond,
 		ElectionTimeout:    1000 * time.Millisecond,
 		CommitTimeout:      50 * time.Millisecond,
@@ -140,9 +140,9 @@ func main() {
 		LogLevel:           "warn",
 	}
 
-	// 如果指定了 join，解析 peers
+	// 如果指定了 join，设置加入地址
 	if *join != "" {
-		cfg.Peers = []string{*join}
+		cfg.JoinAddrs = []string{*join}
 	}
 
 	// 创建 Raft 节点
@@ -160,6 +160,13 @@ func main() {
 	if err != nil {
 		log.Error("failed to start raft node", "error", err)
 		os.Exit(1)
+	}
+
+	// 如果是 bootstrap 模式，引导集群
+	if *bootstrap {
+		if err := node.Bootstrap(); err != nil {
+			log.Warn("bootstrap failed (may already be bootstrapped)", "error", err)
+		}
 	}
 
 	log.Info("raft node started",
