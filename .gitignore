@@ -37,3 +37,9 @@ go.work.sum
 
 # Claude Code
 .claude/
+
+# Project specific artifacts
+bin/
+logs/
+**/logs/
+login-svc

@@ -28,6 +28,7 @@ require (
 	github.com/jackc/pgx/v5 v5.7.6
 	github.com/klauspost/compress v1.18.2
 	github.com/lestrrat-go/file-rotatelogs v2.4.0+incompatible
+	github.com/lk2023060901/xdooria-proto-api v0.0.0-00010101000000-000000000000
 	github.com/panjf2000/ants/v2 v2.11.3
 	github.com/pierrec/lz4/v4 v4.1.23
 	github.com/prometheus/client_golang v1.20.5
@@ -53,7 +54,7 @@ require (
 	golang.org/x/crypto v0.45.0
 	golang.org/x/sync v0.18.0
 	golang.org/x/time v0.14.0
-	google.golang.org/grpc v1.77.0
+	google.golang.org/grpc v1.78.0
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
@@ -145,3 +146,5 @@ require (
 )
 
 replace github.com/xDooria/xDooria-proto-common => ../xDooria-proto-common
+
+replace github.com/lk2023060901/xdooria-proto-api => ../xDooria-proto-api

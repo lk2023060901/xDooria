@@ -1,0 +1,52 @@
+package main
+
+import (
+	"github.com/lk2023060901/xdooria/pkg/app"
+	"github.com/lk2023060901/xdooria/pkg/logger"
+	"github.com/lk2023060901/xdooria/pkg/security"
+	"github.com/lk2023060901/xdooria/pkg/grpc/server"
+	"github.com/lk2023060901/xdooria/pkg/framer"
+)
+
+// Config 定义 Login 服务的完整配置结构
+type Config struct {
+	Log     logger.Config            `mapstructure:"log"`
+	Loggers map[string]*logger.Config `mapstructure:"loggers"`
+	
+	// JWT 配置
+	JWT security.JWTConfig `mapstructure:"jwt"`
+	
+	// gRPC Server 配置
+	Server server.Config `mapstructure:"server"`
+
+	// Framer 配置
+	Framer framer.Config `mapstructure:"framer"`
+}
+
+func main() {
+	var cfg Config
+
+	// 1. 加载配置
+	if err := app.LoadConfig(&cfg); err != nil {
+		panic(err)
+	}
+
+	// 2. 初始化主日志
+	l, err := logger.New(&cfg.Log)
+	if err != nil {
+		panic(err)
+	}
+
+	// 3. 通过 Wire 初始化应用
+	application, cleanup, err := InitApp(&cfg, l)
+	if err != nil {
+		l.Error("failed to initialize application", "error", err)
+		return
+	}
+	defer cleanup()
+
+	// 4. 运行服务
+	if err := application.Run(); err != nil {
+		l.Error("application exited with error", "error", err)
+	}
+}

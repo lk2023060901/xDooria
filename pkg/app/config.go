@@ -14,6 +14,7 @@ import (
 var (
 	configPath string
 	logPath    string
+	showVer    bool
 )
 
 // LoadConfig 集成 pkg/config 提供统一加载能力
@@ -36,10 +37,19 @@ func LoadConfig(target any, opts ...config.Option) error {
 	if pflag.Lookup("log.path") == nil {
 		pflag.StringVar(&logPath, "log.path", defaultLog, "output path for logs")
 	}
+	if pflag.Lookup("version") == nil {
+		pflag.BoolVarP(&showVer, "version", "v", false, "show version info and exit")
+	}
 
 	// 4. 解析命令行参数
 	if !pflag.Parsed() {
 		pflag.Parse()
+	}
+
+	// 处理 --version 标志
+	if showVer {
+		fmt.Println(GetInfo().String())
+		os.Exit(0)
 	}
 
 	// 5. 创建 Viper 实例并配置环境变量映射
@@ -97,7 +107,7 @@ func LoadConfig(target any, opts ...config.Option) error {
 	return nil
 }
 
-// getExecDir 获取可执行文件所在目录（处理符号链接）
+// GetExecDir 获取可执行文件所在目录
 func GetExecDir() (string, error) {
 	execPath, err := os.Executable()
 	if err != nil {

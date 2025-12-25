@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/signal"
 	"sync"
@@ -23,6 +24,7 @@ type Application interface {
 	Run() error
 	Shutdown() error
 	Logger(name string) logger.Logger
+	AppLogger() logger.Logger
 	SetAppLogger(l logger.Logger)
 }
 
@@ -94,6 +96,13 @@ func (a *BaseApp) SetAppLogger(l logger.Logger) {
 	a.logger = l
 }
 
+// AppLogger 获取应用主日志对象
+func (a *BaseApp) AppLogger() logger.Logger {
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+	return a.logger
+}
+
 // Logger 获取具名 Logger
 func (a *BaseApp) Logger(name string) logger.Logger {
 	a.mu.RLock()
@@ -101,7 +110,14 @@ func (a *BaseApp) Logger(name string) logger.Logger {
 	return a.registry.Get(name)
 }
 
-// Run 启动应用程序
+// RegisterLogger 注册具名 Logger
+func (a *BaseApp) RegisterLogger(name string, l logger.Logger) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.registry.Register(name, l)
+}
+
+// Run 启动应用程序并阻塞
 func (a *BaseApp) Run() error {
 	if !a.started.CompareAndSwap(false, true) {
 		return ErrAppAlreadyRunning
@@ -116,6 +132,10 @@ func (a *BaseApp) Run() error {
 	}
 
 	info := GetInfo()
+	// 1. 打印醒目的版本字符串（符合产品级规范）
+	fmt.Println(info.String())
+
+	// 2. 结构化日志记录启动参数
 	a.logger.Info("application starting",
 		"name", info.AppName,
 		"version", info.Version,

@@ -13,7 +13,6 @@ type AppComponents struct {
 // ProviderSet 导出给 Wire 使用
 var ProviderSet = wire.NewSet(
 	NewBaseApp,
-	wire.Bind(new(Application), new(*BaseApp)),
 )
 
 // InitApp 是一个辅助函数，用于将 Wire 注入的组件绑定到 BaseApp
