@@ -3,36 +3,6 @@ package websocket
 
 import "time"
 
-// MessageType 消息类型
-type MessageType int
-
-const (
-	// MessageTypeText 文本消息
-	MessageTypeText MessageType = 1
-	// MessageTypeBinary 二进制消息
-	MessageTypeBinary MessageType = 2
-	// MessageTypePing Ping 消息
-	MessageTypePing MessageType = 9
-	// MessageTypePong Pong 消息
-	MessageTypePong MessageType = 10
-)
-
-// String 返回消息类型的字符串表示
-func (t MessageType) String() string {
-	switch t {
-	case MessageTypeText:
-		return "text"
-	case MessageTypeBinary:
-		return "binary"
-	case MessageTypePing:
-		return "ping"
-	case MessageTypePong:
-		return "pong"
-	default:
-		return "unknown"
-	}
-}
-
 // ConnectionState 连接状态
 type ConnectionState int
 

@@ -93,7 +93,6 @@ func Logger(log logger.Logger) Middleware {
 			duration := time.Since(start)
 			fields := []interface{}{
 				"conn_id", conn.ID(),
-				"msg_type", msg.Type.String(),
 				"msg_size", len(msg.Data),
 				"duration", duration.String(),
 			}

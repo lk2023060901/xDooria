@@ -310,7 +310,7 @@ func (c *Client) Send(ctx context.Context, msg *Message) error {
 
 	err := conn.Send(ctx, msg)
 	if err == nil && c.metrics != nil {
-		c.metrics.OnMessageSent(msg.Type, int64(len(msg.Data)))
+		c.metrics.OnMessageSent(int64(len(msg.Data)))
 	}
 	return err
 }
@@ -327,28 +327,14 @@ func (c *Client) SendAsync(msg *Message) error {
 
 	err := conn.SendAsync(msg)
 	if err == nil && c.metrics != nil {
-		c.metrics.OnMessageSent(msg.Type, int64(len(msg.Data)))
+		c.metrics.OnMessageSent(int64(len(msg.Data)))
 	}
 	return err
 }
 
-// SendText 发送文本消息
-func (c *Client) SendText(ctx context.Context, data string) error {
-	return c.Send(ctx, NewTextMessageString(data))
-}
-
-// SendBinary 发送二进制消息
-func (c *Client) SendBinary(ctx context.Context, data []byte) error {
-	return c.Send(ctx, NewBinaryMessage(data))
-}
-
-// SendJSON 发送 JSON 消息
-func (c *Client) SendJSON(ctx context.Context, v interface{}) error {
-	msg, err := NewJSONMessage(v)
-	if err != nil {
-		return err
-	}
-	return c.Send(ctx, msg)
+// SendBytes 发送字节数据
+func (c *Client) SendBytes(ctx context.Context, data []byte) error {
+	return c.Send(ctx, NewMessage(data))
 }
 
 // MessageChan 获取消息 Channel

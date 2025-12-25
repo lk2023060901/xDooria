@@ -185,23 +185,9 @@ func (c *Connection) SendAsync(msg *Message) error {
 	}
 }
 
-// SendText 发送文本消息
-func (c *Connection) SendText(ctx context.Context, data string) error {
-	return c.Send(ctx, NewTextMessageString(data))
-}
-
-// SendBinary 发送二进制消息
-func (c *Connection) SendBinary(ctx context.Context, data []byte) error {
-	return c.Send(ctx, NewBinaryMessage(data))
-}
-
-// SendJSON 发送 JSON 消息
-func (c *Connection) SendJSON(ctx context.Context, v interface{}) error {
-	msg, err := NewJSONMessage(v)
-	if err != nil {
-		return err
-	}
-	return c.Send(ctx, msg)
+// SendBytes 发送字节数据
+func (c *Connection) SendBytes(ctx context.Context, data []byte) error {
+	return c.Send(ctx, NewMessage(data))
 }
 
 // Subscribe 订阅消息（Channel 模式）
@@ -271,9 +257,13 @@ func (c *Connection) ReadLoop(handler HandlerFunc) {
 			return
 		}
 
+		// 跳过非二进制消息（Ping/Pong/Close 由 gorilla/websocket 内部处理）
+		if msgType != websocket.BinaryMessage && msgType != websocket.TextMessage {
+			continue
+		}
+
 		// 构造消息
 		msg := &Message{
-			Type:      MessageType(msgType),
 			Data:      data,
 			Timestamp: time.Now(),
 		}
@@ -309,8 +299,8 @@ func (c *Connection) WriteLoop() {
 				c.conn.SetWriteDeadline(time.Now().Add(c.writeTimeout))
 			}
 
-			// 写入消息
-			if err := c.conn.WriteMessage(int(msg.Type), msg.Data); err != nil {
+			// 写入消息（固定使用 BinaryMessage）
+			if err := c.conn.WriteMessage(websocket.BinaryMessage, msg.Data); err != nil {
 				if c.logger != nil {
 					c.logger.Debug("websocket write error", "error", err, "conn_id", c.id)
 				}

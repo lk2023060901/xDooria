@@ -13,10 +13,10 @@ type ServerMetrics struct {
 	connectionErrors  *prometheus.CounterVec
 
 	// 消息指标
-	messagesSent     *prometheus.CounterVec
-	messagesReceived *prometheus.CounterVec
-	bytesSent        *prometheus.CounterVec
-	bytesReceived    *prometheus.CounterVec
+	messagesSent     prometheus.Counter
+	messagesReceived prometheus.Counter
+	bytesSent        prometheus.Counter
+	bytesReceived    prometheus.Counter
 
 	// 升级指标
 	upgradeTotal  prometheus.Counter
@@ -44,30 +44,30 @@ func NewServerMetrics(registerer prometheus.Registerer) *ServerMetrics {
 			Name:      "connection_errors_total",
 			Help:      "Total number of connection errors",
 		}, []string{"type"}),
-		messagesSent: prometheus.NewCounterVec(prometheus.CounterOpts{
+		messagesSent: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "websocket",
 			Subsystem: "server",
 			Name:      "messages_sent_total",
 			Help:      "Total number of messages sent",
-		}, []string{"type"}),
-		messagesReceived: prometheus.NewCounterVec(prometheus.CounterOpts{
+		}),
+		messagesReceived: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "websocket",
 			Subsystem: "server",
 			Name:      "messages_received_total",
 			Help:      "Total number of messages received",
-		}, []string{"type"}),
-		bytesSent: prometheus.NewCounterVec(prometheus.CounterOpts{
+		}),
+		bytesSent: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "websocket",
 			Subsystem: "server",
 			Name:      "bytes_sent_total",
 			Help:      "Total bytes sent",
-		}, []string{"type"}),
-		bytesReceived: prometheus.NewCounterVec(prometheus.CounterOpts{
+		}),
+		bytesReceived: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "websocket",
 			Subsystem: "server",
 			Name:      "bytes_received_total",
 			Help:      "Total bytes received",
-		}, []string{"type"}),
+		}),
 		upgradeTotal: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "websocket",
 			Subsystem: "server",
@@ -123,15 +123,13 @@ func (m *ServerMetrics) OnUpgradeError() {
 }
 
 // OnMessageSent 消息发送
-func (m *ServerMetrics) OnMessageSent(msgType MessageType, size int64) {
-	typeStr := msgType.String()
-	m.messagesSent.WithLabelValues(typeStr).Inc()
-	m.bytesSent.WithLabelValues(typeStr).Add(float64(size))
+func (m *ServerMetrics) OnMessageSent(size int64) {
+	m.messagesSent.Inc()
+	m.bytesSent.Add(float64(size))
 }
 
 // OnMessageReceived 消息接收
-func (m *ServerMetrics) OnMessageReceived(msgType MessageType, size int64) {
-	typeStr := msgType.String()
-	m.messagesReceived.WithLabelValues(typeStr).Inc()
-	m.bytesReceived.WithLabelValues(typeStr).Add(float64(size))
+func (m *ServerMetrics) OnMessageReceived(size int64) {
+	m.messagesReceived.Inc()
+	m.bytesReceived.Add(float64(size))
 }

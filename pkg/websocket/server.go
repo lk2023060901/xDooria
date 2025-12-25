@@ -304,29 +304,15 @@ func (s *Server) Broadcast(msg *Message, exclude ...string) error {
 
 	// 更新指标
 	if s.metrics != nil {
-		s.metrics.OnMessageSent(msg.Type, int64(len(msg.Data)))
+		s.metrics.OnMessageSent(int64(len(msg.Data)))
 	}
 
 	return nil
 }
 
-// BroadcastText 广播文本消息
-func (s *Server) BroadcastText(data string, exclude ...string) error {
-	return s.Broadcast(NewTextMessageString(data), exclude...)
-}
-
-// BroadcastBinary 广播二进制消息
-func (s *Server) BroadcastBinary(data []byte, exclude ...string) error {
-	return s.Broadcast(NewBinaryMessage(data), exclude...)
-}
-
-// BroadcastJSON 广播 JSON 消息
-func (s *Server) BroadcastJSON(v interface{}, exclude ...string) error {
-	msg, err := NewJSONMessage(v)
-	if err != nil {
-		return err
-	}
-	return s.Broadcast(msg, exclude...)
+// BroadcastBytes 广播字节数据
+func (s *Server) BroadcastBytes(data []byte, exclude ...string) error {
+	return s.Broadcast(NewMessage(data), exclude...)
 }
 
 // GetConnection 获取指定连接
