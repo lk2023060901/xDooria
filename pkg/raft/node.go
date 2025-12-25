@@ -159,12 +159,17 @@ func (n *Node) setup() error {
 		return fmt.Errorf("failed to create data dir: %w", err)
 	}
 
-	// 创建 hclog logger
-	n.hcLogger = hclog.New(&hclog.LoggerOptions{
-		Name:   "raft",
-		Level:  hclog.LevelFromString(n.config.LogLevel),
-		Output: os.Stderr,
-	})
+	// 创建 hclog logger（使用适配器将我们的 logger 转为 hclog.Logger）
+	if n.logger != nil {
+		n.hcLogger = NewHclogAdapter(n.logger, "raft", n.config.LogLevel)
+	} else {
+		// 如果没有提供 logger，使用默认的 hclog
+		n.hcLogger = hclog.New(&hclog.LoggerOptions{
+			Name:   "raft",
+			Level:  hclog.LevelFromString(n.config.LogLevel),
+			Output: os.Stderr,
+		})
+	}
 
 	// 创建 BoltDB 存储（同时用于 LogStore 和 StableStore）
 	boltPath := filepath.Join(n.config.DataDir, "raft.db")
