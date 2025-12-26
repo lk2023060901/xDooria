@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/lk2023060901/xdooria/pkg/framer"
-	pb "github.com/xDooria/xDooria-proto-common"
+	pb "github.com/lk2023060901/xdooria-proto-common"
 )
 
 // Processor 消息处理器接口，连接 Framer 和 Router

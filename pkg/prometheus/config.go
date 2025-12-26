@@ -5,34 +5,34 @@ import "time"
 // Config Prometheus 配置
 type Config struct {
 	// 命名空间（应用名称）
-	Namespace string `json:"namespace" yaml:"namespace"`
+	Namespace string `json:"namespace" yaml:"namespace" mapstructure:"namespace"`
 
 	// 子系统（可选）
-	Subsystem string `json:"subsystem" yaml:"subsystem"`
+	Subsystem string `json:"subsystem" yaml:"subsystem" mapstructure:"subsystem"`
 
 	// HTTP 服务器配置
-	HTTPServer HTTPServerConfig `json:"http_server" yaml:"http_server"`
+	HTTPServer HTTPServerConfig `json:"http_server" yaml:"http_server" mapstructure:"http_server"`
 
 	// 是否注册默认 Go 采集器
-	EnableGoCollector bool `json:"enable_go_collector" yaml:"enable_go_collector"`
+	EnableGoCollector bool `json:"enable_go_collector" yaml:"enable_go_collector" mapstructure:"enable_go_collector"`
 
 	// 是否注册默认进程采集器
-	EnableProcessCollector bool `json:"enable_process_collector" yaml:"enable_process_collector"`
+	EnableProcessCollector bool `json:"enable_process_collector" yaml:"enable_process_collector" mapstructure:"enable_process_collector"`
 }
 
 // HTTPServerConfig HTTP 服务器配置
 type HTTPServerConfig struct {
 	// 是否启用独立的 HTTP 服务器暴露指标
-	Enabled bool `json:"enabled" yaml:"enabled"`
+	Enabled bool `json:"enabled" yaml:"enabled" mapstructure:"enabled"`
 
 	// 监听地址
-	Addr string `json:"addr" yaml:"addr"`
+	Addr string `json:"addr" yaml:"addr" mapstructure:"addr"`
 
 	// 指标路径
-	Path string `json:"path" yaml:"path"`
+	Path string `json:"path" yaml:"path" mapstructure:"path"`
 
 	// 读写超时
-	Timeout time.Duration `json:"timeout" yaml:"timeout"`
+	Timeout time.Duration `json:"timeout" yaml:"timeout" mapstructure:"timeout"`
 }
 
 // DefaultConfig 默认配置

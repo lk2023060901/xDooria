@@ -17,3 +17,31 @@ framer:
   enable_encrypt: false # 开发环境先关闭加密方便调试
   enable_compress: false
   compress_min_bytes: 1024
+
+prometheus:
+  namespace: login
+  http_server:
+    enabled: true
+    addr: :9091
+    path: /metrics
+  enable_go_collector: true
+  enable_process_collector: true
+
+registry:
+  endpoints:
+    - localhost:2379
+  dial_timeout: 5s
+  ttl: 10s
+  service_name: login
+  service_addr: localhost:50051
+
+metrics:
+  namespace: login
+  system_collect_interval: 5s
+  bandwidth:
+    enabled: true
+    window_size: 60s
+    window_buckets: 12
+  sliding_window:
+    window_size: 60s
+    bucket_count: 12

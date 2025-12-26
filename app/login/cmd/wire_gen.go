@@ -7,17 +7,22 @@
 package main
 
 import (
+	"context"
+	"github.com/lk2023060901/xdooria-proto-common"
 	"github.com/lk2023060901/xdooria/app/login/internal/dao"
 	"github.com/lk2023060901/xdooria/app/login/internal/manager"
+	"github.com/lk2023060901/xdooria/app/login/internal/metrics"
 	"github.com/lk2023060901/xdooria/app/login/internal/service"
 	"github.com/lk2023060901/xdooria/component/auth"
 	"github.com/lk2023060901/xdooria/pkg/app"
 	"github.com/lk2023060901/xdooria/pkg/framer"
 	"github.com/lk2023060901/xdooria/pkg/grpc/server"
 	"github.com/lk2023060901/xdooria/pkg/logger"
+	"github.com/lk2023060901/xdooria/pkg/prometheus"
+	"github.com/lk2023060901/xdooria/pkg/registry"
+	"github.com/lk2023060901/xdooria/pkg/registry/etcd"
 	"github.com/lk2023060901/xdooria/pkg/router"
 	"github.com/lk2023060901/xdooria/pkg/security"
-	"github.com/xDooria/xDooria-proto-common"
 )
 
 // Injectors from wire.go:
@@ -46,14 +51,33 @@ func InitApp(cfg *Config, l logger.Logger) (app.Application, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	loginService := service.NewLoginService(authManager, jwtManager)
+	metricsConfig := provideMetricsConfig(cfg)
+	loginMetrics, err := metrics.New(metricsConfig)
+	if err != nil {
+		return nil, nil, err
+	}
+	loginService := service.NewLoginService(authManager, jwtManager, loginMetrics)
 	configDAO, err := dao.NewConfigDAO(baseApp)
 	if err != nil {
 		return nil, nil, err
 	}
 	tables := configDAO.Tables
 	localAuthenticator := manager.NewLocalAuthenticator(tables)
-	appComponents := provideAppComponents(baseApp, serverServer, bridge, loginService, authManager, localAuthenticator, routerRouter, v)
+	prometheusConfig := providePrometheusConfig(cfg)
+	client, err := prometheus.New(prometheusConfig)
+	if err != nil {
+		return nil, nil, err
+	}
+	etcdConfig := provideRegistryConfig(cfg)
+	registrar, err := etcd.NewRegistrar(etcdConfig)
+	if err != nil {
+		return nil, nil, err
+	}
+	reporter, err := provideMetricsReporter(loginMetrics, registrar, l)
+	if err != nil {
+		return nil, nil, err
+	}
+	appComponents := provideAppComponents(baseApp, serverServer, bridge, loginService, authManager, localAuthenticator, routerRouter, client, loginMetrics, reporter, registrar, cfg, v)
 	application := app.InitApp(baseApp, appComponents)
 	return application, func() {
 	}, nil
@@ -65,6 +89,31 @@ var (
 )
 
 // wire.go:
+
+// providePrometheusConfig 提供 Prometheus 配置
+func providePrometheusConfig(cfg *Config) *prometheus.Config {
+	return &cfg.Prometheus
+}
+
+// provideRegistryConfig 提供服务注册配置
+func provideRegistryConfig(cfg *Config) *etcd.Config {
+	return &cfg.Registry
+}
+
+// provideMetricsConfig 提供指标配置
+func provideMetricsConfig(cfg *Config) *metrics.Config {
+	return &cfg.Metrics
+}
+
+// provideMetricsReporter 提供指标上报器
+func provideMetricsReporter(
+	m *metrics.LoginMetrics,
+	registrar registry.Registrar,
+	l logger.Logger,
+) (*metrics.Reporter, error) {
+	cfg := m.GetConfig()
+	return metrics.NewReporter(&cfg.Reporter, m, registrar, l)
+}
 
 func provideAppOptions(cfg *Config, l logger.Logger) []app.Option {
 	return []app.Option{app.WithName(app.AppName), app.WithLogger(l), app.WithLogConfig(&cfg.Log), app.WithNamedLoggers(cfg.Loggers)}
@@ -78,17 +127,84 @@ func provideAppComponents(
 	authMgr *auth.Manager,
 	localAuth *manager.LocalAuthenticator,
 	r router.Router,
+	promClient *prometheus.Client,
+	loginMetrics *metrics.LoginMetrics,
+	reporter *metrics.Reporter,
+	registrar *etcd.Registrar,
+	cfg *Config,
 	opts []app.Option,
 ) app.AppComponents {
 
 	authMgr.Register(localAuth)
 
 	loginSvc.Init(r)
+
+	_ = loginMetrics.Register(promClient.Registry())
+
+	reporter.Start()
 	common.RegisterCommonServiceServer(srv.GetGRPCServer(), bridge)
+
+	serviceStarter := &serviceRegistrar{
+		registrar:   registrar,
+		serviceName: cfg.Registry.ServiceName,
+		serviceAddr: cfg.Registry.ServiceAddr,
+		logger:      baseApp.AppLogger(),
+	}
 
 	return app.AppComponents{
 		Servers: []app.Server{
 			srv,
+			serviceStarter,
+		},
+		Closers: []app.Closer{
+			&metricsCloser{reporter: reporter},
+			promClient,
+			&registrarCloser{registrar: registrar},
 		},
 	}
+}
+
+// metricsCloser 指标上报器关闭器
+type metricsCloser struct {
+	reporter *metrics.Reporter
+}
+
+func (c *metricsCloser) Close() error {
+	c.reporter.Stop()
+	return nil
+}
+
+// registrarCloser 服务注册器关闭器
+type registrarCloser struct {
+	registrar *etcd.Registrar
+}
+
+func (c *registrarCloser) Close() error {
+	return c.registrar.Deregister(context.Background())
+}
+
+// serviceRegistrar 服务注册启动器，实现 app.Server 接口
+type serviceRegistrar struct {
+	registrar   *etcd.Registrar
+	serviceName string
+	serviceAddr string
+	logger      logger.Logger
+}
+
+func (s *serviceRegistrar) Start() error {
+	info := &registry.ServiceInfo{
+		ServiceName: s.serviceName,
+		Address:     s.serviceAddr,
+		Metadata:    make(map[string]string),
+	}
+	if err := s.registrar.Register(context.Background(), info); err != nil {
+		s.logger.Error("failed to register service", "error", err)
+		return err
+	}
+	s.logger.Info("service registered to etcd", "name", s.serviceName, "addr", s.serviceAddr)
+	return nil
+}
+
+func (s *serviceRegistrar) Stop() error {
+	return nil
 }

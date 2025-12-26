@@ -177,7 +177,7 @@ func isZeroValue(v reflect.Value) bool {
 		return v.Float() == 0
 	case reflect.String:
 		return v.String() == ""
-	case reflect.Ptr, reflect.Interface:
+	case reflect.Ptr, reflect.Interface, reflect.Func:
 		return v.IsNil()
 	case reflect.Slice, reflect.Map:
 		return v.Len() == 0

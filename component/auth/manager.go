@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	pb "github.com/xDooria/xDooria-proto-common"
+	pb "github.com/lk2023060901/xdooria-proto-common"
 )
 
 // Manager 认证管理器

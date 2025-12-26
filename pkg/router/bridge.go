@@ -4,7 +4,7 @@ import (
 	"context"
 	"io"
 
-	pb "github.com/xDooria/xDooria-proto-common"
+	pb "github.com/lk2023060901/xdooria-proto-common"
 	"github.com/lk2023060901/xdooria/pkg/util/conc"
 )
 

@@ -1,26 +1,38 @@
 package main
 
 import (
+	"github.com/lk2023060901/xdooria/app/login/internal/metrics"
 	"github.com/lk2023060901/xdooria/pkg/app"
-	"github.com/lk2023060901/xdooria/pkg/logger"
-	"github.com/lk2023060901/xdooria/pkg/security"
-	"github.com/lk2023060901/xdooria/pkg/grpc/server"
 	"github.com/lk2023060901/xdooria/pkg/framer"
+	"github.com/lk2023060901/xdooria/pkg/grpc/server"
+	"github.com/lk2023060901/xdooria/pkg/logger"
+	"github.com/lk2023060901/xdooria/pkg/prometheus"
+	"github.com/lk2023060901/xdooria/pkg/registry/etcd"
+	"github.com/lk2023060901/xdooria/pkg/security"
 )
 
 // Config 定义 Login 服务的完整配置结构
 type Config struct {
-	Log     logger.Config            `mapstructure:"log"`
+	Log     logger.Config             `mapstructure:"log"`
 	Loggers map[string]*logger.Config `mapstructure:"loggers"`
-	
+
 	// JWT 配置
 	JWT security.JWTConfig `mapstructure:"jwt"`
-	
+
 	// gRPC Server 配置
 	Server server.Config `mapstructure:"server"`
 
 	// Framer 配置
 	Framer framer.Config `mapstructure:"framer"`
+
+	// Prometheus 配置
+	Prometheus prometheus.Config `mapstructure:"prometheus"`
+
+	// 服务注册配置
+	Registry etcd.Config `mapstructure:"registry"`
+
+	// 指标配置
+	Metrics metrics.Config `mapstructure:"metrics"`
 }
 
 func main() {

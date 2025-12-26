@@ -3,7 +3,7 @@ package auth
 import (
 	"context"
 
-	pb "github.com/xDooria/xDooria-proto-common"
+	pb "github.com/lk2023060901/xdooria-proto-common"
 )
 
 // Identity 认证后的统一身份标识

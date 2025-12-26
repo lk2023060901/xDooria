@@ -3,23 +3,31 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/lk2023060901/xdooria/app/login/internal/metrics"
 	"github.com/lk2023060901/xdooria/component/auth"
 	"github.com/lk2023060901/xdooria/pkg/router"
 	"github.com/lk2023060901/xdooria/pkg/security"
-	"github.com/lk2023060901/xdooria-proto-api"
+	api "github.com/lk2023060901/xdooria-proto-api"
 	"github.com/lk2023060901/xdooria-proto-api/login"
 )
 
 type LoginService struct {
 	authMgr *auth.Manager
 	jwtMgr  *security.JWTManager
+	metrics *metrics.LoginMetrics
 }
 
-func NewLoginService(authMgr *auth.Manager, jwtMgr *security.JWTManager) *LoginService {
+func NewLoginService(
+	authMgr *auth.Manager,
+	jwtMgr *security.JWTManager,
+	m *metrics.LoginMetrics,
+) *LoginService {
 	return &LoginService{
 		authMgr: authMgr,
 		jwtMgr:  jwtMgr,
+		metrics: m,
 	}
 }
 
@@ -29,9 +37,17 @@ func (s *LoginService) Init(r router.Router) {
 }
 
 func (s *LoginService) Login(ctx context.Context, req *login.LoginRequest) (*login.LoginResponse, error) {
+	start := time.Now()
+	loginType := req.LoginType
+	loginTypeStr := loginType.String()
+
 	// 1. 调用通用认证组件
-	identity, err := s.authMgr.Verify(ctx, req.LoginType, req.Credentials)
+	identity, err := s.authMgr.Verify(ctx, loginType, req.Credentials)
 	if err != nil {
+		// 记录认证失败指标
+		duration := time.Since(start).Seconds()
+		s.metrics.RecordLogin(loginTypeStr, false, duration)
+		s.metrics.RecordAuthFailure(loginTypeStr, "verify_failed")
 		return nil, fmt.Errorf("authentication failed: %w", err)
 	}
 
@@ -44,8 +60,15 @@ func (s *LoginService) Login(ctx context.Context, req *login.LoginRequest) (*log
 	}
 	token, err := s.jwtMgr.GenerateToken(claims)
 	if err != nil {
+		duration := time.Since(start).Seconds()
+		s.metrics.RecordLogin(loginTypeStr, false, duration)
+		s.metrics.RecordAuthFailure(loginTypeStr, "token_generate_failed")
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
+
+	// 记录成功指标
+	duration := time.Since(start).Seconds()
+	s.metrics.RecordLogin(loginTypeStr, true, duration)
 
 	// 3. 返回结果
 	// 注意：这里需要把 UID 转回 uint64

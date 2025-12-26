@@ -17,6 +17,10 @@ type Config struct {
 	Namespace string `mapstructure:"namespace" json:"namespace"`
 	// VirtualNodes 一致性哈希虚拟节点数量
 	VirtualNodes int `mapstructure:"virtual_nodes" json:"virtual_nodes"`
+	// ServiceName 服务名称（用于服务注册）
+	ServiceName string `mapstructure:"service_name" json:"service_name"`
+	// ServiceAddr 服务地址（用于服务注册，如 localhost:50051）
+	ServiceAddr string `mapstructure:"service_addr" json:"service_addr"`
 }
 
 // DefaultConfig 返回默认配置

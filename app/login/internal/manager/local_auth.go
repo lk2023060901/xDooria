@@ -7,7 +7,7 @@ import (
 	"github.com/lk2023060901/xdooria/component/auth"
 	"github.com/lk2023060901/xdooria/pkg/gameconfig"
 	"github.com/lk2023060901/xdooria-proto-api/login"
-	pb "github.com/xDooria/xDooria-proto-common"
+	pb "github.com/lk2023060901/xdooria-proto-common"
 	"google.golang.org/protobuf/proto"
 )
 

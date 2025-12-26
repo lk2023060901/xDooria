@@ -1,0 +1,40 @@
+# etcd 开发环境 - 单节点
+# 启动: docker compose up -d
+
+services:
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.12
+    container_name: xiaojia-etcd-dev
+    command:
+      - etcd
+      - --name=etcd-dev
+      - --data-dir=/etcd-data
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://0.0.0.0:2379
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --initial-advertise-peer-urls=http://0.0.0.0:2380
+      - --initial-cluster=etcd-dev=http://0.0.0.0:2380
+      - --initial-cluster-state=new
+      - --initial-cluster-token=xiaojia-etcd-dev
+      - --auto-compaction-retention=1
+      - --quota-backend-bytes=8589934592
+    ports:
+      - "2379:2379"
+      - "2380:2380"
+    volumes:
+      - etcd-data:/etcd-data
+    networks:
+      - xiaojia-dev
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  etcd-data:
+
+networks:
+  xiaojia-dev:
+    external: true

@@ -1,0 +1,60 @@
+# Jaeger 生产环境 - 分布式部署（使用 Elasticsearch 存储）
+# 启动: docker compose up -d
+
+services:
+  jaeger-collector:
+    image: jaegertracing/jaeger-collector:1.53
+    container_name: xiaojia-jaeger-collector
+    ports:
+      - "14268:14268"     # HTTP collector
+      - "14250:14250"     # gRPC collector
+      - "4317:4317"       # OTLP gRPC
+      - "4318:4318"       # OTLP HTTP
+    environment:
+      - SPAN_STORAGE_TYPE=elasticsearch
+      - ES_SERVER_URLS=http://elasticsearch:9200
+      - ES_NUM_SHARDS=3
+      - ES_NUM_REPLICAS=1
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - xiaojia-prod
+    restart: unless-stopped
+    depends_on:
+      - elasticsearch
+
+  jaeger-query:
+    image: jaegertracing/jaeger-query:1.53
+    container_name: xiaojia-jaeger-query
+    ports:
+      - "16686:16686"     # Web UI
+      - "16687:16687"     # gRPC query
+    environment:
+      - SPAN_STORAGE_TYPE=elasticsearch
+      - ES_SERVER_URLS=http://elasticsearch:9200
+    networks:
+      - xiaojia-prod
+    restart: unless-stopped
+    depends_on:
+      - elasticsearch
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: xiaojia-jaeger-es
+    ports:
+      - "9200:9200"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    networks:
+      - xiaojia-prod
+    restart: unless-stopped
+
+volumes:
+  es-data:
+
+networks:
+  xiaojia-prod:
+    external: true

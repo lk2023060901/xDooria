@@ -1,0 +1,27 @@
+# Prometheus 开发环境
+# 启动: docker compose up -d
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: xiaojia-prometheus-dev
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=7d'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - xiaojia-dev
+    restart: unless-stopped
+
+volumes:
+  prometheus-data:
+
+networks:
+  xiaojia-dev:
+    external: true

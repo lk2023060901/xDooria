@@ -1,0 +1,38 @@
+log:
+  level: debug
+  format: console
+  enable_console: true
+
+web:
+  port: 8080
+  read_timeout: 30s
+  write_timeout: 30s
+
+etcd:
+  endpoints:
+    - localhost:2379
+  dial_timeout: 5s
+
+login_client:
+  client:
+    target: etcd:///login
+    dial_timeout: 5s
+  framer:
+    enable_encrypt: false
+    enable_compress: false
+
+prometheus:
+  namespace: portal
+  http_server:
+    enabled: true
+    addr: :9092
+    path: /metrics
+  enable_go_collector: true
+  enable_process_collector: true
+
+metrics:
+  namespace: portal
+  system_collect_interval: 5s
+  sliding_window:
+    window_size: 60s
+    bucket_count: 12

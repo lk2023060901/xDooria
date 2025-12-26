@@ -1,0 +1,105 @@
+# etcd 生产环境 - 3 节点集群
+# 启动: docker compose up -d
+
+services:
+  etcd-1:
+    image: quay.io/coreos/etcd:v3.5.12
+    container_name: xiaojia-etcd-1
+    hostname: etcd-1
+    command:
+      - etcd
+      - --name=etcd-1
+      - --data-dir=/etcd-data
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://etcd-1:2379
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --initial-advertise-peer-urls=http://etcd-1:2380
+      - --initial-cluster=etcd-1=http://etcd-1:2380,etcd-2=http://etcd-2:2380,etcd-3=http://etcd-3:2380
+      - --initial-cluster-state=new
+      - --initial-cluster-token=xiaojia-etcd-prod
+      - --auto-compaction-retention=1
+      - --quota-backend-bytes=8589934592
+    ports:
+      - "2379:2379"
+      - "2380:2380"
+    volumes:
+      - etcd-1-data:/etcd-data
+    networks:
+      - xiaojia-prod
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  etcd-2:
+    image: quay.io/coreos/etcd:v3.5.12
+    container_name: xiaojia-etcd-2
+    hostname: etcd-2
+    command:
+      - etcd
+      - --name=etcd-2
+      - --data-dir=/etcd-data
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://etcd-2:2379
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --initial-advertise-peer-urls=http://etcd-2:2380
+      - --initial-cluster=etcd-1=http://etcd-1:2380,etcd-2=http://etcd-2:2380,etcd-3=http://etcd-3:2380
+      - --initial-cluster-state=new
+      - --initial-cluster-token=xiaojia-etcd-prod
+      - --auto-compaction-retention=1
+      - --quota-backend-bytes=8589934592
+    ports:
+      - "2479:2379"
+      - "2480:2380"
+    volumes:
+      - etcd-2-data:/etcd-data
+    networks:
+      - xiaojia-prod
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  etcd-3:
+    image: quay.io/coreos/etcd:v3.5.12
+    container_name: xiaojia-etcd-3
+    hostname: etcd-3
+    command:
+      - etcd
+      - --name=etcd-3
+      - --data-dir=/etcd-data
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://etcd-3:2379
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --initial-advertise-peer-urls=http://etcd-3:2380
+      - --initial-cluster=etcd-1=http://etcd-1:2380,etcd-2=http://etcd-2:2380,etcd-3=http://etcd-3:2380
+      - --initial-cluster-state=new
+      - --initial-cluster-token=xiaojia-etcd-prod
+      - --auto-compaction-retention=1
+      - --quota-backend-bytes=8589934592
+    ports:
+      - "2579:2379"
+      - "2580:2380"
+    volumes:
+      - etcd-3-data:/etcd-data
+    networks:
+      - xiaojia-prod
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  etcd-1-data:
+  etcd-2-data:
+  etcd-3-data:
+
+networks:
+  xiaojia-prod:
+    external: true

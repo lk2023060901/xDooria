@@ -16,7 +16,7 @@ import (
 	"github.com/lk2023060901/xdooria/pkg/pool/bytebuff"
 	"google.golang.org/protobuf/proto"
 
-	pb "github.com/xDooria/xDooria-proto-common"
+	pb "github.com/lk2023060901/xdooria-proto-common"
 )
 
 // Framer 消息帧处理器接口

@@ -1,0 +1,27 @@
+# Grafana 开发环境
+# 启动: docker compose up -d
+# 默认账号: admin / admin
+
+services:
+  grafana:
+    image: grafana/grafana:10.2.2
+    container_name: xiaojia-grafana-dev
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    networks:
+      - xiaojia-dev
+    restart: unless-stopped
+
+volumes:
+  grafana-data:
+
+networks:
+  xiaojia-dev:
+    external: true

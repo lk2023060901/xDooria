@@ -1,0 +1,37 @@
+# Grafana 生产环境
+# 启动: docker compose up -d
+# 注意: 首次启动后请修改管理员密码
+
+services:
+  grafana:
+    image: grafana/grafana:10.2.2
+    container_name: xiaojia-grafana-prod
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-changeme}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_SERVER_ROOT_URL=https://grafana.xiaojia.com
+      - GF_SMTP_ENABLED=true
+      - GF_SMTP_HOST=${SMTP_HOST:-smtp.example.com:587}
+      - GF_SMTP_USER=${SMTP_USER:-}
+      - GF_SMTP_PASSWORD=${SMTP_PASSWORD:-}
+    volumes:
+      - ./provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    networks:
+      - xiaojia-prod
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+volumes:
+  grafana-data:
+
+networks:
+  xiaojia-prod:
+    external: true

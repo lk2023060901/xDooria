@@ -1,0 +1,50 @@
+# Prometheus 生产环境配置
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+scrape_configs:
+  # Prometheus 自身监控
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Portal 服务集群
+  - job_name: 'portal'
+    static_configs:
+      - targets:
+          - 'portal-1:8080'
+          - 'portal-2:8080'
+    metrics_path: /metrics
+
+  # Login 服务集群
+  - job_name: 'login'
+    static_configs:
+      - targets:
+          - 'login-1:8081'
+          - 'login-2:8081'
+          - 'login-3:8081'
+    metrics_path: /metrics
+
+  # etcd 集群监控
+  - job_name: 'etcd'
+    static_configs:
+      - targets:
+          - 'etcd-1:2379'
+          - 'etcd-2:2379'
+          - 'etcd-3:2379'
+
+  # Node Exporter（主机监控）
+  - job_name: 'node'
+    static_configs:
+      - targets:
+          - 'node-exporter:9100'

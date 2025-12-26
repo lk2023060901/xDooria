@@ -1,0 +1,34 @@
+# Prometheus 生产环境
+# 启动: docker compose up -d
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: xiaojia-prometheus-prod
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--storage.tsdb.retention.size=50GB'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./rules:/etc/prometheus/rules:ro
+      - prometheus-data:/prometheus
+    networks:
+      - xiaojia-prod
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+
+volumes:
+  prometheus-data:
+
+networks:
+  xiaojia-prod:
+    external: true
