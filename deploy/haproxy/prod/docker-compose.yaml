@@ -1,0 +1,31 @@
+version: "3.8"
+
+services:
+  haproxy:
+    image: haproxy:2.9-alpine
+    container_name: xdooria-haproxy
+    ports:
+      - "80:80"       # HTTP (重定向到 HTTPS)
+      - "443:443"     # HTTPS API
+      - "9000:9000"   # gRPC (TLS)
+      - "7000:7000"   # TCP 游戏连接 (TLS)
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      - ./certs:/etc/haproxy/certs:ro
+      - ./errors:/etc/haproxy/errors:ro
+    environment:
+      - HAPROXY_STATS_PASSWORD=${HAPROXY_STATS_PASSWORD}
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"

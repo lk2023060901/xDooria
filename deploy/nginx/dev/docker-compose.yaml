@@ -1,0 +1,20 @@
+# Nginx 开发环境
+# 作为 Login 服务前端，接收 HAProxy 转发的请求
+
+services:
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: xdooria-nginx-dev
+    ports:
+      - "8080:8080"   # HTTP (供 HAProxy 转发)
+      - "8090:8090"   # gRPC (供 HAProxy 转发)
+      - "8070:8070"   # TCP 游戏连接 (供 HAProxy 转发)
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - xdooria-dev
+    restart: unless-stopped
+
+networks:
+  xdooria-dev:
+    external: true

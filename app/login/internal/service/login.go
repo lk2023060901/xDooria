@@ -37,8 +37,10 @@ func (s *LoginService) Login(ctx context.Context, req *login.LoginRequest) (*log
 
 	// 2. 生成 JWT Token
 	claims := &security.Claims{
-		UserID:   identity.UID,
-		Username: identity.Nickname,
+		Payload: map[string]any{
+			"uid":      identity.UID,
+			"nickname": identity.Nickname,
+		},
 	}
 	token, err := s.jwtMgr.GenerateToken(claims)
 	if err != nil {

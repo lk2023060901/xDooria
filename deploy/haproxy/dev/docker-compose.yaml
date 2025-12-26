@@ -1,0 +1,33 @@
+# HAProxy 开发环境
+# 为 Nginx 提供多活负载均衡
+
+services:
+  haproxy:
+    image: haproxy:2.9-alpine
+    container_name: xdooria-haproxy-dev
+    ports:
+      - "8000:8000"   # HTTP API (dev 环境使用高位端口)
+      - "9000:9000"   # gRPC
+      - "7070:7070"   # TCP 游戏连接 (dev 环境避开 macOS AirPlay 7000 端口)
+      - "8404:8404"   # 统计页面
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    networks:
+      - xdooria-dev
+    depends_on:
+      - nginx
+    restart: unless-stopped
+
+  # Nginx 作为 HAProxy 后端
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: xdooria-nginx-dev
+    volumes:
+      - ../../nginx/dev/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - xdooria-dev
+    restart: unless-stopped
+
+networks:
+  xdooria-dev:
+    driver: bridge

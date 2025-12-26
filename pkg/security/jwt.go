@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/lk2023060901/xdooria/pkg/config"
 )
@@ -51,24 +52,12 @@ type JWTConfig struct {
 	SkipPaths []string `mapstructure:"skip_paths" json:"skip_paths"`
 }
 
-// Claims 自定义 JWT Claims
+// Claims 通用 JWT Claims
 type Claims struct {
 	jwt.RegisteredClaims
 
-	// 用户 ID
-	UserID string `json:"user_id,omitempty"`
-
-	// 用户名
-	Username string `json:"username,omitempty"`
-
-	// 角色列表
-	Roles []string `json:"roles,omitempty"`
-
-	// 权限列表
-	Permissions []string `json:"permissions,omitempty"`
-
-	// 额外数据
-	Extra map[string]interface{} `json:"extra,omitempty"`
+	// Payload 自定义载荷，完全由调用方决定内容
+	Payload map[string]any `json:"payload,omitempty"`
 }
 
 
@@ -86,8 +75,8 @@ func DefaultJWTConfig() *JWTConfig {
 // JWTManager JWT 管理器
 type JWTManager struct {
 	config     *JWTConfig
-	publicKey  interface{}
-	privateKey interface{}
+	publicKey  any
+	privateKey any
 }
 
 // NewJWTManager 创建 JWT 管理器
@@ -164,9 +153,9 @@ func (m *JWTManager) GenerateToken(claims *Claims) (string, error) {
 }
 
 // GenerateRefreshToken 生成刷新 Token
-func (m *JWTManager) GenerateRefreshToken(userID string) (string, error) {
+func (m *JWTManager) GenerateRefreshToken(payload map[string]any) (string, error) {
 	claims := &Claims{
-		UserID: userID,
+		Payload: payload,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(m.config.RefreshExpiresIn)),
 		},
@@ -180,7 +169,7 @@ func (m *JWTManager) ValidateToken(tokenString string) (*Claims, error) {
 	tokenString = m.stripPrefix(tokenString)
 
 	// 解析 Token
-	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (any, error) {
 		// 验证算法
 		if token.Method.Alg() != m.config.Algorithm {
 			return nil, ErrAlgorithmMismatch
@@ -259,7 +248,7 @@ func (m *JWTManager) signToken(token *jwt.Token) (string, error) {
 }
 
 // getVerifyKey 获取验证密钥
-func (m *JWTManager) getVerifyKey() interface{} {
+func (m *JWTManager) getVerifyKey() any {
 	alg := strings.ToUpper(m.config.Algorithm)
 
 	switch {
@@ -327,7 +316,7 @@ func matchPath(pattern, path string) bool {
 }
 
 // loadPublicKey 加载公钥
-func loadPublicKey(file string, alg string) (interface{}, error) {
+func loadPublicKey(file string, alg string) (any, error) {
 	data, err := os.ReadFile(file)
 	if err != nil {
 		return nil, err
@@ -343,7 +332,7 @@ func loadPublicKey(file string, alg string) (interface{}, error) {
 }
 
 // loadPrivateKey 加载私钥
-func loadPrivateKey(file string, alg string) (interface{}, error) {
+func loadPrivateKey(file string, alg string) (any, error) {
 	data, err := os.ReadFile(file)
 	if err != nil {
 		return nil, err
@@ -377,59 +366,53 @@ func GetClaimsFromContext(ctx context.Context) (*Claims, bool) {
 	return claims, ok
 }
 
-// GetUserIDFromContext 从 context 获取用户 ID
-func GetUserIDFromContext(ctx context.Context) string {
-	claims, ok := GetClaimsFromContext(ctx)
-	if !ok {
-		return ""
+// Unmarshal 将整个 Payload 解析到结构体
+func (c *Claims) Unmarshal(v any) error {
+	if c.Payload == nil {
+		return nil
 	}
-	return claims.UserID
+	return mapstructure.Decode(c.Payload, v)
 }
 
-// HasRole 检查用户是否有指定角色
-func (c *Claims) HasRole(role string) bool {
-	for _, r := range c.Roles {
-		if r == role {
-			return true
-		}
+// UnmarshalKey 将指定 key 的值解析到结构体或基本类型
+func (c *Claims) UnmarshalKey(key string, v any) error {
+	if c.Payload == nil {
+		return nil
 	}
-	return false
+	val := c.getNestedValue(key)
+	if val == nil {
+		return nil
+	}
+	return mapstructure.Decode(val, v)
 }
 
-// HasPermission 检查用户是否有指定权限
-func (c *Claims) HasPermission(permission string) bool {
-	for _, p := range c.Permissions {
-		if p == permission {
-			return true
-		}
+// Get 获取指定 key 的值（支持点号分隔的嵌套 key）
+func (c *Claims) Get(key string) any {
+	if c.Payload == nil {
+		return nil
 	}
-	return false
+	return c.getNestedValue(key)
 }
 
-// HasAnyRole 检查用户是否有任意一个角色
-func (c *Claims) HasAnyRole(roles ...string) bool {
-	for _, role := range roles {
-		if c.HasRole(role) {
-			return true
-		}
-	}
-	return false
-}
+// getNestedValue 支持点号分隔的嵌套 key，如 "user.profile.name"
+func (c *Claims) getNestedValue(key string) any {
+	keys := strings.Split(key, ".")
+	var current any = c.Payload
 
-// HasAllRoles 检查用户是否有所有角色
-func (c *Claims) HasAllRoles(roles ...string) bool {
-	for _, role := range roles {
-		if !c.HasRole(role) {
-			return false
+	for _, k := range keys {
+		if m, ok := current.(map[string]any); ok {
+			current = m[k]
+		} else {
+			return nil
 		}
 	}
-	return true
+	return current
 }
 
 // 确保类型断言
 var (
-	_ interface{} = (*rsa.PublicKey)(nil)
-	_ interface{} = (*rsa.PrivateKey)(nil)
-	_ interface{} = (*ecdsa.PublicKey)(nil)
-	_ interface{} = (*ecdsa.PrivateKey)(nil)
+	_ any = (*rsa.PublicKey)(nil)
+	_ any = (*rsa.PrivateKey)(nil)
+	_ any = (*ecdsa.PublicKey)(nil)
+	_ any = (*ecdsa.PrivateKey)(nil)
 )
