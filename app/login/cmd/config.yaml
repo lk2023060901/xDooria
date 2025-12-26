@@ -30,6 +30,7 @@ prometheus:
 registry:
   endpoints:
     - localhost:2379
+  namespace: "/xdooria"
   dial_timeout: 5s
   ttl: 10s
   service_name: login

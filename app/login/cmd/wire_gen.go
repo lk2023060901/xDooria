@@ -56,7 +56,12 @@ func InitApp(cfg *Config, l logger.Logger) (app.Application, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	loginService := service.NewLoginService(authManager, jwtManager, loginMetrics)
+	etcdConfig := provideRegistryConfig(cfg)
+	resolver, err := etcd.NewResolver(etcdConfig)
+	if err != nil {
+		return nil, nil, err
+	}
+	loginService := service.NewLoginService(authManager, jwtManager, loginMetrics, resolver)
 	configDAO, err := dao.NewConfigDAO(baseApp)
 	if err != nil {
 		return nil, nil, err
@@ -68,7 +73,6 @@ func InitApp(cfg *Config, l logger.Logger) (app.Application, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	etcdConfig := provideRegistryConfig(cfg)
 	registrar, err := etcd.NewRegistrar(etcdConfig)
 	if err != nil {
 		return nil, nil, err
@@ -77,7 +81,7 @@ func InitApp(cfg *Config, l logger.Logger) (app.Application, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	appComponents := provideAppComponents(baseApp, serverServer, bridge, loginService, authManager, localAuthenticator, routerRouter, client, loginMetrics, reporter, registrar, cfg, v)
+	appComponents := provideAppComponents(baseApp, serverServer, bridge, loginService, authManager, localAuthenticator, routerRouter, client, loginMetrics, reporter, registrar, resolver, cfg, v)
 	application := app.InitApp(baseApp, appComponents)
 	return application, func() {
 	}, nil
@@ -131,6 +135,7 @@ func provideAppComponents(
 	loginMetrics *metrics.LoginMetrics,
 	reporter *metrics.Reporter,
 	registrar *etcd.Registrar,
+	resolver *etcd.Resolver,
 	cfg *Config,
 	opts []app.Option,
 ) app.AppComponents {
@@ -160,6 +165,7 @@ func provideAppComponents(
 			&metricsCloser{reporter: reporter},
 			promClient,
 			&registrarCloser{registrar: registrar},
+			resolver,
 		},
 	}
 }

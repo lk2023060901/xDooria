@@ -3,10 +3,12 @@ package service
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"time"
 
 	"github.com/lk2023060901/xdooria/app/login/internal/metrics"
 	"github.com/lk2023060901/xdooria/component/auth"
+	"github.com/lk2023060901/xdooria/pkg/registry"
 	"github.com/lk2023060901/xdooria/pkg/router"
 	"github.com/lk2023060901/xdooria/pkg/security"
 	api "github.com/lk2023060901/xdooria-proto-api"
@@ -14,20 +16,23 @@ import (
 )
 
 type LoginService struct {
-	authMgr *auth.Manager
-	jwtMgr  *security.JWTManager
-	metrics *metrics.LoginMetrics
+	authMgr  *auth.Manager
+	jwtMgr   *security.JWTManager
+	metrics  *metrics.LoginMetrics
+	resolver registry.Resolver
 }
 
 func NewLoginService(
 	authMgr *auth.Manager,
 	jwtMgr *security.JWTManager,
 	m *metrics.LoginMetrics,
+	r registry.Resolver,
 ) *LoginService {
 	return &LoginService{
-		authMgr: authMgr,
-		jwtMgr:  jwtMgr,
-		metrics: m,
+		authMgr:  authMgr,
+		jwtMgr:   jwtMgr,
+		metrics:  m,
+		resolver: r,
 	}
 }
 
@@ -66,18 +71,29 @@ func (s *LoginService) Login(ctx context.Context, req *login.LoginRequest) (*log
 		return nil, fmt.Errorf("failed to generate token: %w", err)
 	}
 
+	// 3. 分配网关
+	gatewayAddr := ""
+	if s.resolver != nil {
+		gateways, err := s.resolver.Resolve(ctx, "gateway")
+		if err == nil && len(gateways) > 0 {
+			// 随机分配一个网关
+			idx := rand.Intn(len(gateways))
+			gatewayAddr = gateways[idx].Address
+		}
+	}
+
 	// 记录成功指标
 	duration := time.Since(start).Seconds()
 	s.metrics.RecordLogin(loginTypeStr, true, duration)
 
-	// 3. 返回结果
-	// 注意：这里需要把 UID 转回 uint64
+	// 4. 返回结果
 	var uid uint64
 	fmt.Sscanf(identity.UID, "%d", &uid)
 
 	return &login.LoginResponse{
-		Token:    token,
-		Uid:      uid,
-		Nickname: identity.Nickname,
+		Token:        token,
+		Uid:          uid,
+		Nickname:     identity.Nickname,
+		GatewayAddr:  gatewayAddr,
 	}, nil
 }

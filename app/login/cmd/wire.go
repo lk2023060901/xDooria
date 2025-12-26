@@ -63,10 +63,12 @@ func InitApp(cfg *Config, l logger.Logger) (app.Application, func(), error) {
 		providePrometheusConfig,
 		prometheus.New,
 
-		// 11. 服务注册（etcd）
+		// 11. 服务注册与发现（etcd）
 		provideRegistryConfig,
 		etcd.NewRegistrar,
 		wire.Bind(new(registry.Registrar), new(*etcd.Registrar)),
+		etcd.NewResolver,
+		wire.Bind(new(registry.Resolver), new(*etcd.Resolver)),
 
 		// 12. 指标收集
 		provideMetricsConfig,
@@ -126,6 +128,7 @@ func provideAppComponents(
 	loginMetrics *metrics.LoginMetrics,
 	reporter *metrics.Reporter,
 	registrar *etcd.Registrar,
+	resolver *etcd.Resolver,
 	cfg *Config,
 	opts []app.Option,
 ) app.AppComponents {
@@ -161,6 +164,7 @@ func provideAppComponents(
 			&metricsCloser{reporter: reporter},
 			promClient,
 			&registrarCloser{registrar: registrar},
+			resolver,
 		},
 	}
 }

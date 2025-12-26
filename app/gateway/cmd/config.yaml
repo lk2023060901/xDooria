@@ -1,0 +1,29 @@
+log:
+  level: debug
+  format: console
+  enable_console: true
+
+tcp:
+  addr: "0.0.0.0:9000"
+  network: tcp
+  multicore: true
+
+session:
+  send_channel_size: 1024
+  recv_channel_size: 1024
+
+registry:
+  endpoints: ["127.0.0.1:2379"]
+  namespace: "/xdooria"
+  ttl: 10s
+  service_name: "gateway"
+
+jwt:
+  secret_key: "xdooria-secret-key-123456"
+  algorithm: HS256
+  expires_in: 24h
+
+framer:
+  enable_encrypt: false
+  enable_compress: false
+  compress_min_bytes: 1024

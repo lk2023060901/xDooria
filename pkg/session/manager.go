@@ -1,7 +1,10 @@
 package session
 
 import (
+	"context"
 	"sync"
+
+	"github.com/lk2023060901/xdooria-proto-common"
 )
 
 // SessionManager 定义会话管理器的接口。
@@ -16,6 +19,10 @@ type SessionManager interface {
 	Count() int
 	// Range 遍历所有会话，若 f 返回 false 则停止遍历。
 	Range(f func(session Session) bool)
+	// Broadcast 向所有会话广播数据。
+	Broadcast(ctx context.Context, env *common.Envelope)
+	// Close 关闭并清空所有会话。
+	Close() error
 }
 
 // BaseSessionManager 提供 SessionManager 接口的基础实现。
@@ -63,10 +70,38 @@ func (m *BaseSessionManager) Count() int {
 // Range 遍历所有会话。
 func (m *BaseSessionManager) Range(f func(session Session) bool) {
 	m.mu.RLock()
+	// 为了避免在遍历时长时间持有锁，可以先复制一份切片或者在回调中处理
+	// 这里简单实现，遍历时持有读锁
 	defer m.mu.RUnlock()
 	for _, session := range m.sessions {
 		if !f(session) {
 			break
 		}
 	}
+}
+
+// Broadcast 向所有会话广播数据。
+func (m *BaseSessionManager) Broadcast(ctx context.Context, env *common.Envelope) {
+	m.mu.RLock()
+	// 复制一份 session 列表以减少持锁时间
+	sessions := make([]Session, 0, len(m.sessions))
+	for _, s := range m.sessions {
+		sessions = append(sessions, s)
+	}
+	m.mu.RUnlock()
+
+	for _, s := range sessions {
+		_ = s.Send(ctx, env)
+	}
+}
+
+// Close 关闭并清空所有会话。
+func (m *BaseSessionManager) Close() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for id, s := range m.sessions {
+		_ = s.Close()
+		delete(m.sessions, id)
+	}
+	return nil
 }

@@ -34,9 +34,10 @@ require (
 	github.com/lk2023060901/xdooria-proto-api v0.0.4
 	github.com/lk2023060901/xdooria-proto-common v0.0.4
 	github.com/panjf2000/ants/v2 v2.11.3
+	github.com/panjf2000/gnet/v2 v2.9.6
 	github.com/pierrec/lz4/v4 v4.1.23
 	github.com/prometheus/client_golang v1.20.5
-	github.com/redis/go-redis/v9 v9.3.0
+	github.com/redis/go-redis/v9 v9.17.2
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/segmentio/kafka-go v0.4.49
 	github.com/shirou/gopsutil/v3 v3.24.5
@@ -53,15 +54,19 @@ require (
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.39.0
 	go.opentelemetry.io/otel/sdk v1.39.0
 	go.opentelemetry.io/otel/trace v1.39.0
-	go.uber.org/atomic v1.11.0
-	go.uber.org/zap v1.27.1
+	go.uber.org/atomic v1.6.0
+	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.45.0
 	golang.org/x/sync v0.18.0
-	golang.org/x/time v0.14.0
+	golang.org/x/time v0.3.0
 	google.golang.org/grpc v1.78.0
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
+
+replace github.com/lk2023060901/xdooria-proto-api => ../xDooria-proto-api
+
+replace github.com/lk2023060901/xdooria-proto-common => ../xDooria-proto-common
 
 require (
 	cel.dev/expr v0.24.0 // indirect
@@ -123,7 +128,6 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/panjf2000/gnet/v2 v2.9.6 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pingcap/errors v0.11.5-0.20211224045212-9687c2b0f87c // indirect
 	github.com/pkg/errors v0.9.1 // indirect
