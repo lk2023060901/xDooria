@@ -3,9 +3,10 @@ package main
 import (
 	"github.com/lk2023060901/xdooria/app/login/internal/metrics"
 	"github.com/lk2023060901/xdooria/pkg/app"
-	"github.com/lk2023060901/xdooria/pkg/framer"
-	"github.com/lk2023060901/xdooria/pkg/grpc/server"
 	"github.com/lk2023060901/xdooria/pkg/logger"
+	"github.com/lk2023060901/xdooria/pkg/network/framer"
+	"github.com/lk2023060901/xdooria/pkg/network/session"
+	"github.com/lk2023060901/xdooria/pkg/network/tcp"
 	"github.com/lk2023060901/xdooria/pkg/prometheus"
 	"github.com/lk2023060901/xdooria/pkg/registry/etcd"
 	"github.com/lk2023060901/xdooria/pkg/security"
@@ -19,8 +20,11 @@ type Config struct {
 	// JWT 配置
 	JWT security.JWTConfig `mapstructure:"jwt"`
 
-	// gRPC Server 配置
-	Server server.Config `mapstructure:"server"`
+	// TCP Server 配置
+	TCP tcp.ServerConfig `mapstructure:"tcp"`
+
+	// Session 配置
+	Session session.Config `mapstructure:"session"`
 
 	// Framer 配置
 	Framer framer.Config `mapstructure:"framer"`

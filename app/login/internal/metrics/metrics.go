@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/lk2023060901/xdooria/pkg/config"
-	"github.com/lk2023060901/xdooria/pkg/grpc/interceptor"
+	"github.com/lk2023060901/xdooria/pkg/network/grpc/interceptor"
 	"github.com/lk2023060901/xdooria/pkg/metrics/sliding"
 	"github.com/lk2023060901/xdooria/pkg/metrics/system"
 	"github.com/prometheus/client_golang/prometheus"

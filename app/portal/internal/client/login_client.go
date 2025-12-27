@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/lk2023060901/xdooria/pkg/config"
-	"github.com/lk2023060901/xdooria/pkg/framer"
-	grpcclient "github.com/lk2023060901/xdooria/pkg/grpc/client"
+	"github.com/lk2023060901/xdooria/pkg/network/framer"
+	grpcclient "github.com/lk2023060901/xdooria/pkg/network/grpc/client"
 	"github.com/lk2023060901/xdooria/pkg/logger"
 	"github.com/lk2023060901/xdooria/pkg/registry/etcd"
 	api "github.com/lk2023060901/xdooria-proto-api"

@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	fmt.Println("=== Crypto Package Examples ===\n")
+	fmt.Println("=== Crypto Package Examples ===")
 
 	// 1. AES-256 加密示例
 	fmt.Println("1. AES-256-GCM 加密示例:")

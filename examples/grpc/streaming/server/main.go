@@ -10,7 +10,7 @@ import (
 	"time"
 
 	pb "github.com/lk2023060901/xdooria/examples/grpc/proto/streaming"
-	"github.com/lk2023060901/xdooria/pkg/grpc/server"
+	"github.com/lk2023060901/xdooria/pkg/network/grpc/server"
 )
 
 // streamServer 实现 StreamService

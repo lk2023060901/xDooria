@@ -401,7 +401,9 @@ func TestSortedSetCommands(t *testing.T) {
 	if err != nil {
 		t.Errorf("ZRevRangeWithScores() error = %v", err)
 	}
-	if items[0].Score != 100 {
+	if len(items) == 0 {
+		t.Errorf("ZRevRangeWithScores() returned empty items")
+	} else if items[0].Score != 100 {
 		t.Errorf("ZRevRangeWithScores()[0].Score = %v, want 100", items[0].Score)
 	}
 

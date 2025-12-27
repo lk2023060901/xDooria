@@ -4,17 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/lk2023060901/xdooria-proto-common"
 	"github.com/lk2023060901/xdooria/app/gateway/internal/handler"
 	"github.com/lk2023060901/xdooria/pkg/app"
-	"github.com/lk2023060901/xdooria/pkg/framer"
-	"github.com/lk2023060901/xdooria/pkg/grpc/client"
 	"github.com/lk2023060901/xdooria/pkg/logger"
+	"github.com/lk2023060901/xdooria/pkg/network/framer"
+	"github.com/lk2023060901/xdooria/pkg/network/session"
+	"github.com/lk2023060901/xdooria/pkg/network/tcp"
 	"github.com/lk2023060901/xdooria/pkg/registry"
 	"github.com/lk2023060901/xdooria/pkg/registry/etcd"
+	"github.com/lk2023060901/xdooria/pkg/router"
 	"github.com/lk2023060901/xdooria/pkg/security"
-	"github.com/lk2023060901/xdooria/pkg/session"
-	"github.com/lk2023060901/xdooria/pkg/tcp"
 )
 
 // Config Gateway 服务配置
@@ -67,40 +66,26 @@ func main() {
 		return
 	}
 
-	// 5. 注册 gRPC etcd resolver
-	if err := etcd.RegisterBuilder(&cfg.Registry); err != nil {
-		l.Error("failed to register etcd resolver", "error", err)
-		return
-	}
+	// 5. 初始化 Router 和 Processor
+	r := router.New()
+	processor := router.NewProcessor(r)
 
-	// 6. 连接到 Login 服务
-	loginClientWrapper, err := client.New(&client.Config{
-		Target: "etcd:///login", // 使用 etcd 发现 login 服务
-	})
-	if err != nil {
-		l.Error("failed to create login client", "error", err)
-		return
-	}
-	if err := loginClientWrapper.Dial(); err != nil {
-		l.Error("failed to dial login service", "error", err)
-		return
-	}
-	
-	conn, _ := loginClientWrapper.GetConn()
-	loginClient := common.NewCommonServiceClient(conn)
+	// 6. 初始化业务 Handler
+	gwHandler := handler.NewGatewayHandler(l, jwtMgr, processor)
 
-	// 7. 初始化业务 Handler
-	gwHandler := handler.NewGatewayHandler(l, fr, jwtMgr, loginClient)
+	// 7. 初始化 Session 配置（注入 Framer）
+	sessCfg := cfg.Session
+	sessCfg.Framer = fr
 
 	// 8. 初始化 Session Server
 	sessServer := session.NewServer(&session.ServerConfig{
-		Session: &cfg.Session,
+		Session: &sessCfg,
 		Handler: gwHandler,
 	})
 
 	// 9. 初始化 TCP Acceptor (并包装托管逻辑)
 	sessServer.Config().Acceptor = sessServer.ManagedAcceptor(func(h session.SessionHandler) session.Acceptor {
-		return tcp.NewAcceptor(&cfg.TCP, sessServer.Config().Session, h)
+		return tcp.NewAcceptor(&cfg.TCP, &sessCfg, h)
 	})
 
 	// 10. 创建服务注册器
@@ -118,19 +103,18 @@ func main() {
 
 	// 将 sessServer 注册到应用中
 	application.AppendServer(sessServer)
-	
+
 	// 注册服务到 etcd 的启动器
 	application.AppendServer(&serviceRegistrar{
 		registrar: registrar,
 		info: &registry.ServiceInfo{
-			ServiceName: "gateway", // 注册为 gateway
+			ServiceName: "gateway",
 			Address:     cfg.TCP.Addr,
 			Metadata:    make(map[string]string),
 		},
 	})
-	
+
 	application.AppendCloser(&registrarCloser{registrar: registrar})
-	application.AppendCloser(loginClientWrapper)
 
 	// 12. 运行
 	if err := application.Run(); err != nil {

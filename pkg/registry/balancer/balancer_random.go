@@ -1,11 +1,12 @@
 package balancer
 
 import (
-	"math/rand"
-	"sync"
+	"strconv"
 
 	"google.golang.org/grpc/balancer"
 	"google.golang.org/grpc/balancer/base"
+
+	genericbalancer "github.com/lk2023060901/xdooria/pkg/balancer"
 )
 
 const (
@@ -36,32 +37,33 @@ func (b *randomBuilder) Build(info base.PickerBuildInfo) balancer.Picker {
 	}
 
 	scs := make([]balancer.SubConn, 0, len(info.ReadySCs))
+	nodes := make([]*genericbalancer.Node, 0, len(info.ReadySCs))
 	for sc := range info.ReadySCs {
 		scs = append(scs, sc)
+		nodes = append(nodes, &genericbalancer.Node{Address: strconv.Itoa(len(scs) - 1)})
 	}
 
 	return &randomPicker{
 		subConns: scs,
+		nodes:    nodes,
+		balancer: genericbalancer.New(genericbalancer.RandomName),
 	}
 }
 
 // randomPicker 实现随机选择器
 type randomPicker struct {
 	subConns []balancer.SubConn
-	mu       sync.Mutex
+	nodes    []*genericbalancer.Node
+	balancer genericbalancer.Balancer
 }
 
 // Pick 随机选择一个连接
 func (p *randomPicker) Pick(info balancer.PickInfo) (balancer.PickResult, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	if len(p.subConns) == 0 {
+	node := p.balancer.Pick(p.nodes, genericbalancer.PickInfo{})
+	if node == nil {
 		return balancer.PickResult{}, balancer.ErrNoSubConnAvailable
 	}
 
-	// 随机选择一个索引
-	idx := rand.Intn(len(p.subConns))
-
+	idx, _ := strconv.Atoi(node.Address)
 	return balancer.PickResult{SubConn: p.subConns[idx]}, nil
 }

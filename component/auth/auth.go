@@ -8,10 +8,10 @@ import (
 
 // Identity 认证后的统一身份标识
 type Identity struct {
-	UID        string            // 平台唯一标识 (OpenID/UnionID)
-	Nickname   string            // 平台昵称
-	Avatar     string            // 平台头像
-	Extra      map[string]string // 平台特定扩展数据
+	UID       string            // 平台唯一标识 (OpenID/UnionID)
+	Nickname  string            // 平台昵称
+	AvatarUrl string            // 平台头像 URL
+	Extra     map[string]string // 平台特定扩展数据
 }
 
 // Authenticator 认证器接口，每种平台实现一套

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	pb "github.com/lk2023060901/xdooria/examples/grpc/proto/helloworld"
-	"github.com/lk2023060901/xdooria/pkg/grpc/server"
+	"github.com/lk2023060901/xdooria/pkg/network/grpc/server"
 	etcdRegistry "github.com/lk2023060901/xdooria/pkg/registry/etcd"
 )
 

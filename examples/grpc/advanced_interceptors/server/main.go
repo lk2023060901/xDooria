@@ -9,8 +9,8 @@ import (
 	"syscall"
 
 	pb "github.com/lk2023060901/xdooria/examples/grpc/proto/user"
-	"github.com/lk2023060901/xdooria/pkg/grpc/interceptor"
-	"github.com/lk2023060901/xdooria/pkg/grpc/server"
+	"github.com/lk2023060901/xdooria/pkg/network/grpc/interceptor"
+	"github.com/lk2023060901/xdooria/pkg/network/grpc/server"
 	"github.com/lk2023060901/xdooria/pkg/logger"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

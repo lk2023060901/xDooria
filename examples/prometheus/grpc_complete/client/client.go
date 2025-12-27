@@ -11,8 +11,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/lk2023060901/xdooria/pkg/grpc/client"
-	"github.com/lk2023060901/xdooria/pkg/grpc/interceptor"
+	"github.com/lk2023060901/xdooria/pkg/network/grpc/client"
+	"github.com/lk2023060901/xdooria/pkg/network/grpc/interceptor"
 	"github.com/lk2023060901/xdooria/pkg/logger"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"

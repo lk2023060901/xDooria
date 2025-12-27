@@ -9,8 +9,8 @@ import (
 	"syscall"
 
 	pb "github.com/lk2023060901/xdooria/examples/grpc/proto/helloworld"
-	"github.com/lk2023060901/xdooria/pkg/grpc/interceptor"
-	"github.com/lk2023060901/xdooria/pkg/grpc/server"
+	"github.com/lk2023060901/xdooria/pkg/network/grpc/interceptor"
+	"github.com/lk2023060901/xdooria/pkg/network/grpc/server"
 	"github.com/lk2023060901/xdooria/pkg/logger"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"

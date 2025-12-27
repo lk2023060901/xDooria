@@ -8,5 +8,4 @@ import (
 var ProviderSet = wire.NewSet(
 	New,          // 返回 Router
 	NewProcessor, // 返回 Processor
-	NewBridge,    // 返回 *Bridge
 )

@@ -2,7 +2,7 @@
 package codec
 
 import (
-	"github.com/lk2023060901/xdooria/pkg/framer"
+	"github.com/lk2023060901/xdooria/pkg/network/framer"
 
 	pb "github.com/lk2023060901/xdooria-proto-common"
 )

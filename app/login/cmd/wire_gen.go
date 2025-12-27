@@ -8,16 +8,18 @@ package main
 
 import (
 	"context"
-	"github.com/lk2023060901/xdooria-proto-common"
 	"github.com/lk2023060901/xdooria/app/login/internal/dao"
+	"github.com/lk2023060901/xdooria/app/login/internal/handler"
 	"github.com/lk2023060901/xdooria/app/login/internal/manager"
 	"github.com/lk2023060901/xdooria/app/login/internal/metrics"
 	"github.com/lk2023060901/xdooria/app/login/internal/service"
 	"github.com/lk2023060901/xdooria/component/auth"
 	"github.com/lk2023060901/xdooria/pkg/app"
-	"github.com/lk2023060901/xdooria/pkg/framer"
-	"github.com/lk2023060901/xdooria/pkg/grpc/server"
+	"github.com/lk2023060901/xdooria/pkg/balancer"
 	"github.com/lk2023060901/xdooria/pkg/logger"
+	"github.com/lk2023060901/xdooria/pkg/network/framer"
+	"github.com/lk2023060901/xdooria/pkg/network/session"
+	"github.com/lk2023060901/xdooria/pkg/network/tcp"
 	"github.com/lk2023060901/xdooria/pkg/prometheus"
 	"github.com/lk2023060901/xdooria/pkg/registry"
 	"github.com/lk2023060901/xdooria/pkg/registry/etcd"
@@ -30,21 +32,17 @@ import (
 func InitApp(cfg *Config, l logger.Logger) (app.Application, func(), error) {
 	v := provideAppOptions(cfg, l)
 	baseApp := app.NewBaseApp(v...)
-	config := &cfg.Server
-	v2 := _wireValue
-	serverServer, err := server.New(config, v2...)
+	serverConfig := &cfg.TCP
+	config := &cfg.Framer
+	framerFramer, err := framer.New(config)
 	if err != nil {
 		return nil, nil, err
 	}
-	framerConfig := &cfg.Framer
-	framerFramer, err := framer.New(framerConfig)
-	if err != nil {
-		return nil, nil, err
-	}
+	sessionConfig := provideSessionConfig(cfg, framerFramer)
 	routerRouter := router.New()
-	processor := router.NewProcessor(framerFramer, routerRouter)
-	v3 := _wireValue2
-	bridge := router.NewBridge(processor, v3...)
+	processor := router.NewProcessor(routerRouter)
+	loginHandler := handler.NewLoginHandler(l, processor)
+	server := provideSessionServer(serverConfig, sessionConfig, loginHandler)
 	authManager := auth.NewManager()
 	jwtConfig := &cfg.JWT
 	jwtManager, err := security.NewJWTManager(jwtConfig)
@@ -61,7 +59,8 @@ func InitApp(cfg *Config, l logger.Logger) (app.Application, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	loginService := service.NewLoginService(authManager, jwtManager, loginMetrics, resolver)
+	balancer := provideBalancer()
+	loginService := service.NewLoginService(authManager, jwtManager, loginMetrics, resolver, balancer)
 	configDAO, err := dao.NewConfigDAO(baseApp)
 	if err != nil {
 		return nil, nil, err
@@ -81,16 +80,11 @@ func InitApp(cfg *Config, l logger.Logger) (app.Application, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	appComponents := provideAppComponents(baseApp, serverServer, bridge, loginService, authManager, localAuthenticator, routerRouter, client, loginMetrics, reporter, registrar, resolver, cfg, v)
+	appComponents := provideAppComponents(baseApp, server, loginService, authManager, localAuthenticator, routerRouter, client, loginMetrics, reporter, registrar, resolver, cfg, v)
 	application := app.InitApp(baseApp, appComponents)
 	return application, func() {
 	}, nil
 }
-
-var (
-	_wireValue  = []server.Option{}
-	_wireValue2 = []router.Option{}
-)
 
 // wire.go:
 
@@ -119,14 +113,37 @@ func provideMetricsReporter(
 	return metrics.NewReporter(&cfg.Reporter, m, registrar, l)
 }
 
+// provideSessionConfig 提供 Session 配置（注入 Framer）
+func provideSessionConfig(cfg *Config, fr framer.Framer) *session.Config {
+	sessCfg := cfg.Session
+	sessCfg.Framer = fr
+	return &sessCfg
+}
+
+// provideSessionServer 提供 Session Server
+func provideSessionServer(
+	tcpCfg *tcp.ServerConfig,
+	sessCfg *session.Config,
+	h session.SessionHandler,
+) *session.Server {
+	sessServer := session.NewServer(&session.ServerConfig{
+		Session: sessCfg,
+		Handler: h,
+	})
+
+	sessServer.Config().Acceptor = sessServer.ManagedAcceptor(func(handler2 session.SessionHandler) session.Acceptor {
+		return tcp.NewAcceptor(tcpCfg, sessCfg, handler2)
+	})
+	return sessServer
+}
+
 func provideAppOptions(cfg *Config, l logger.Logger) []app.Option {
 	return []app.Option{app.WithName(app.AppName), app.WithLogger(l), app.WithLogConfig(&cfg.Log), app.WithNamedLoggers(cfg.Loggers)}
 }
 
 func provideAppComponents(
 	baseApp *app.BaseApp,
-	srv *server.Server,
-	bridge *router.Bridge,
+	sessServer *session.Server,
 	loginSvc *service.LoginService,
 	authMgr *auth.Manager,
 	localAuth *manager.LocalAuthenticator,
@@ -147,18 +164,17 @@ func provideAppComponents(
 	_ = loginMetrics.Register(promClient.Registry())
 
 	reporter.Start()
-	common.RegisterCommonServiceServer(srv.GetGRPCServer(), bridge)
 
 	serviceStarter := &serviceRegistrar{
 		registrar:   registrar,
 		serviceName: cfg.Registry.ServiceName,
-		serviceAddr: cfg.Registry.ServiceAddr,
+		serviceAddr: cfg.TCP.Addr,
 		logger:      baseApp.AppLogger(),
 	}
 
 	return app.AppComponents{
 		Servers: []app.Server{
-			srv,
+			sessServer,
 			serviceStarter,
 		},
 		Closers: []app.Closer{
@@ -213,4 +229,9 @@ func (s *serviceRegistrar) Start() error {
 
 func (s *serviceRegistrar) Stop() error {
 	return nil
+}
+
+// provideBalancer 提供负载均衡器
+func provideBalancer() balancer.Balancer {
+	return balancer.New(balancer.RoundRobinName)
 }

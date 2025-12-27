@@ -6,7 +6,7 @@ import (
 	"time"
 
 	pb "github.com/lk2023060901/xdooria/examples/grpc/proto/helloworld"
-	"github.com/lk2023060901/xdooria/pkg/grpc/client"
+	"github.com/lk2023060901/xdooria/pkg/network/grpc/client"
 )
 
 func main() {

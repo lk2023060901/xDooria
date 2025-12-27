@@ -3,53 +3,30 @@ package router
 import (
 	"context"
 	"fmt"
-
-	"github.com/lk2023060901/xdooria/pkg/framer"
-	pb "github.com/lk2023060901/xdooria-proto-common"
 )
 
-// Processor 消息处理器接口，连接 Framer 和 Router
+// Processor 消息处理器接口，封装 Router 调度
 type Processor interface {
-	Process(ctx context.Context, reqEnvelope *pb.Envelope) (*pb.Envelope, error)
+	// Process 处理已解码的消息，返回响应操作码和载荷
+	Process(ctx context.Context, op uint32, payload []byte) (respOp uint32, respPayload []byte, err error)
 }
 
 type processor struct {
-	framer framer.Framer
 	router Router
 }
 
 // NewProcessor 创建一个新的处理器实例
-func NewProcessor(f framer.Framer, r Router) Processor {
+func NewProcessor(r Router) Processor {
 	return &processor{
-		framer: f,
 		router: r,
 	}
 }
 
-// Process 处理单个 Envelope 消息流
-func (p *processor) Process(ctx context.Context, reqEnvelope *pb.Envelope) (*pb.Envelope, error) {
-	// 1. 使用 Framer 解码 Envelope
-	op, payload, err := p.framer.Decode(reqEnvelope)
-	if err != nil {
-		return nil, fmt.Errorf("framer decode failed: %w", err)
-	}
-
-	// 2. 使用 Router 调度到对应的 Handler，获取响应操作码和载荷
+// Process 调度到对应的 Handler 处理消息
+func (p *processor) Process(ctx context.Context, op uint32, payload []byte) (uint32, []byte, error) {
 	respOp, respPayload, err := p.router.Dispatch(ctx, op, payload)
 	if err != nil {
-		return nil, fmt.Errorf("router dispatch failed (op=%d): %w", op, err)
+		return 0, nil, fmt.Errorf("router dispatch failed (op=%d): %w", op, err)
 	}
-
-	// 3. 使用 Framer 编码响应 Payload
-	respEnvelope, err := p.framer.Encode(respOp, respPayload)
-	if err != nil {
-		return nil, fmt.Errorf("framer encode failed: %w", err)
-	}
-
-	// 设置响应的 SeqId 为请求的 SeqId，方便客户端匹配
-	if respEnvelope.Header != nil && reqEnvelope.Header != nil {
-		respEnvelope.Header.SeqId = reqEnvelope.Header.SeqId
-	}
-
-	return respEnvelope, nil
+	return respOp, respPayload, nil
 }

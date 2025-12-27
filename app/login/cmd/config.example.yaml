@@ -1,0 +1,122 @@
+# ============================================================
+# Login 服务完整配置示例
+# ============================================================
+
+# ------------------------------------------------------------
+# 日志配置
+# ------------------------------------------------------------
+log:
+  level: debug                    # 日志级别: debug, info, warn, error
+  format: console                 # 输出格式: console, json
+  enable_console: true            # 是否输出到控制台
+  file_path: ""                   # 日志文件路径，为空则不写文件
+  max_size: 100                   # 单个日志文件最大大小 (MB)
+  max_backups: 10                 # 保留的旧日志文件数量
+  max_age: 30                     # 日志文件保留天数
+  compress: false                 # 是否压缩旧日志
+
+# 命名日志 (可选，用于不同模块独立配置)
+loggers:
+  auth:
+    level: info
+    format: json
+
+# ------------------------------------------------------------
+# TCP Server 配置
+# ------------------------------------------------------------
+tcp:
+  addr: ":50051"                  # 监听地址
+  network: tcp                    # 网络类型: tcp, tcp4, tcp6
+  multicore: true                 # 是否启用多核
+  num_event_loop: 0               # 事件循环数量，0 表示使用 CPU 核心数
+  reuse_port: true                # 是否启用端口复用
+  reuse_addr: true                # 是否启用地址复用
+  read_buffer_size: 65536         # 读缓冲区大小 (bytes)
+  write_buffer_size: 65536        # 写缓冲区大小 (bytes)
+  max_message_size: 1048576       # 最大消息大小 (bytes)，默认 1MB
+  send_queue_size: 256            # 发送队列大小
+  read_timeout: 60s               # 读超时
+  write_timeout: 10s              # 写超时
+  tcp_keep_alive: 30s             # TCP KeepAlive 间隔
+  tcp_no_delay: true              # 是否禁用 Nagle 算法
+
+# ------------------------------------------------------------
+# Session 配置
+# ------------------------------------------------------------
+session:
+  send_channel_size: 1024         # 发送通道大小
+  recv_channel_size: 1024         # 接收通道大小
+
+# ------------------------------------------------------------
+# JWT 配置
+# ------------------------------------------------------------
+jwt:
+  secret_key: "your-secret-key"   # 签名密钥 (HS256 等对称算法)
+  public_key_file: ""             # 公钥文件路径 (RS256 等非对称算法)
+  private_key_file: ""            # 私钥文件路径 (RS256 等非对称算法)
+  algorithm: HS256                # 签名算法: HS256, HS384, HS512, RS256, RS384, RS512, ES256, ES384, ES512
+  expires_in: 5m                  # Token 过期时间 (LoginToken 建议 5 分钟)
+  refresh_expires_in: 168h        # 刷新 Token 过期时间 (7 天)
+  issuer: "login"                 # 签发者
+  token_prefix: "Bearer "         # Token 前缀
+  header_name: "authorization"    # Header 名称
+  skip_paths:                     # 跳过验证的路径
+    - /health
+    - /metrics
+
+# ------------------------------------------------------------
+# Framer 配置 (消息签名/加密/压缩)
+# ------------------------------------------------------------
+framer:
+  # 签名配置
+  enable_sign: true               # 是否启用签名
+  sign_key: "your-sign-key"       # 签名密钥
+
+  # 加密配置
+  enable_encrypt: false           # 是否启用加密
+  encrypt_key: ""                 # 加密密钥 (AES-256: 32 bytes)
+
+  # 压缩配置
+  enable_compress: false          # 是否启用压缩
+  compress_min_bytes: 1024        # 压缩最小字节数，小于此值不压缩
+
+# ------------------------------------------------------------
+# Prometheus 监控配置
+# ------------------------------------------------------------
+prometheus:
+  namespace: login                # 指标命名空间
+  http_server:
+    enabled: true                 # 是否启用 HTTP 服务
+    addr: ":9091"                 # HTTP 监听地址
+    path: /metrics                # 指标路径
+  enable_go_collector: true       # 是否启用 Go 运行时指标
+  enable_process_collector: true  # 是否启用进程指标
+
+# ------------------------------------------------------------
+# etcd 服务注册配置
+# ------------------------------------------------------------
+registry:
+  endpoints:                      # etcd 节点地址
+    - localhost:2379
+  namespace: "/xdooria"           # 服务注册命名空间
+  dial_timeout: 5s                # 连接超时
+  ttl: 10s                        # 租约 TTL
+  service_name: login             # 服务名称
+  service_addr: "localhost:50051" # 服务地址 (外部可访问)
+
+# ------------------------------------------------------------
+# 指标收集配置
+# ------------------------------------------------------------
+metrics:
+  namespace: login
+  system_collect_interval: 5s     # 系统指标收集间隔
+  bandwidth:
+    enabled: true                 # 是否启用带宽统计
+    window_size: 60s              # 统计窗口大小
+    window_buckets: 12            # 窗口桶数量
+  sliding_window:
+    window_size: 60s              # 滑动窗口大小
+    bucket_count: 12              # 桶数量
+  reporter:
+    enabled: true                 # 是否启用上报
+    interval: 10s                 # 上报间隔

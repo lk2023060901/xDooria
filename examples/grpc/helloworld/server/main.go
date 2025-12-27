@@ -8,7 +8,7 @@ import (
 	"syscall"
 
 	pb "github.com/lk2023060901/xdooria/examples/grpc/proto/helloworld"
-	"github.com/lk2023060901/xdooria/pkg/grpc/server"
+	"github.com/lk2023060901/xdooria/pkg/network/grpc/server"
 )
 
 // greeterServer 实现 Greeter 服务

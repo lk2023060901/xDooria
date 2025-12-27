@@ -11,7 +11,7 @@ server:
 jwt:
   secret_key: "xdooria-secret-key-123456"
   algorithm: HS256
-  expires_in: 24h
+  expires_in: 5m
 
 framer:
   enable_encrypt: false # 开发环境先关闭加密方便调试
