@@ -55,6 +55,7 @@ func InitApp(cfg *Config, l logger.Logger) (app.Application, func(), error) {
 		auth.ProviderSet,
 
 		// 9. 数据层 (Luban Config)
+		provideGameConfigConfig,
 		dao.NewConfigDAO,
 		wire.FieldsOf(new(*dao.ConfigDAO), "Tables"),
 
@@ -107,6 +108,14 @@ func provideRegistryConfig(cfg *Config) *etcd.Config {
 // provideMetricsConfig 提供指标配置
 func provideMetricsConfig(cfg *Config) *metrics.Config {
 	return &cfg.Metrics
+}
+
+// provideGameConfigConfig 提供游戏配置表加载配置
+func provideGameConfigConfig(cfg *Config) *dao.GameConfigConfig {
+	return &dao.GameConfigConfig{
+		RequiredTables: cfg.GameConfig.RequiredTables,
+		OptionalTables: cfg.GameConfig.OptionalTables,
+	}
 }
 
 // provideMetricsReporter 提供指标上报器

@@ -12,10 +12,19 @@ import (
 	"github.com/lk2023060901/xdooria/pkg/security"
 )
 
+// GameConfigConfig 游戏配置表加载配置
+type GameConfigConfig struct {
+	RequiredTables []string `mapstructure:"required_tables"`
+	OptionalTables []string `mapstructure:"optional_tables"`
+}
+
 // Config 定义 Login 服务的完整配置结构
 type Config struct {
 	Log     logger.Config             `mapstructure:"log"`
 	Loggers map[string]*logger.Config `mapstructure:"loggers"`
+
+	// 游戏配置表
+	GameConfig GameConfigConfig `mapstructure:"gameconfig"`
 
 	// JWT 配置
 	JWT security.JWTConfig `mapstructure:"jwt"`

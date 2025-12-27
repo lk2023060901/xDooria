@@ -59,12 +59,12 @@ func NewFileJsonLoader(dataDir string, l logger.Logger) (JsonLoader, error) {
 func identifySingletonTables() map[string]bool {
 	singletons := make(map[string]bool)
 	t := reflect.TypeOf(Tables{})
-	
+
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 		// 所有的表字段名通常是 TbAccount, TbGlobalConfig 这种形式
 		tableName := strings.ToLower(field.Name)
-		
+
 		// 检查该字段类型（如 *TbGlobalConfig）是否拥有一个无参数的 Get 方法
 		// 这是 Luban 单例模式生成的唯一特征
 		if method, ok := field.Type.MethodByName("Get"); ok {
@@ -75,4 +75,76 @@ func identifySingletonTables() map[string]bool {
 		}
 	}
 	return singletons
+}
+
+// NewSelectiveFileJsonLoader 创建一个选择性加载的文件 JSON 加载器
+// requiredTables: 必须存在的配置表列表，不存在会返回错误
+// optionalTables: 可选的配置表列表，不存在会返回空数据
+func NewSelectiveFileJsonLoader(dataDir string, requiredTables, optionalTables []string, l logger.Logger) (JsonLoader, error) {
+	if l == nil {
+		return nil, fmt.Errorf("logger is required for NewSelectiveFileJsonLoader")
+	}
+
+	// 构建必需表和可选表的快速查找集合
+	required := make(map[string]bool)
+	optional := make(map[string]bool)
+
+	for _, table := range requiredTables {
+		required[strings.ToLower(table)] = true
+	}
+	for _, table := range optionalTables {
+		optional[strings.ToLower(table)] = true
+	}
+
+	// 识别单例表
+	singletonTables := identifySingletonTables()
+
+	return func(tableName string) ([]map[string]interface{}, error) {
+		tableNameLower := strings.ToLower(tableName)
+		fileName := fmt.Sprintf("%s.json", tableName)
+		filePath := filepath.Join(dataDir, fileName)
+
+		// 检查文件是否存在
+		_, err := os.Stat(filePath)
+		fileExists := err == nil
+
+		if !fileExists {
+			// 如果是必需表，返回错误
+			if required[tableNameLower] {
+				return nil, fmt.Errorf("required config file not found: %s", filePath)
+			}
+
+			// 如果是可选表，返回空数据
+			if optional[tableNameLower] {
+				l.Debug("optional config file not found, initializing as empty",
+					"table", tableName,
+					"path", filePath)
+
+				if singletonTables[tableNameLower] {
+					return []map[string]interface{}{{}}, nil
+				}
+				return []map[string]interface{}{}, nil
+			}
+
+			// 既不是必需也不是可选，说明配置有问题
+			return nil, fmt.Errorf("table %s is not declared in required_tables or optional_tables", tableName)
+		}
+
+		// 文件存在，正常加载
+		data, err := os.ReadFile(filePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read config file %s: %w", filePath, err)
+		}
+
+		var res []map[string]interface{}
+		if err := json.Unmarshal(data, &res); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal config file %s: %w", filePath, err)
+		}
+
+		l.Debug("config file loaded successfully",
+			"table", tableName,
+			"records", len(res))
+
+		return res, nil
+	}, nil
 }

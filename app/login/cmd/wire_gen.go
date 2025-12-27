@@ -61,7 +61,8 @@ func InitApp(cfg *Config, l logger.Logger) (app.Application, func(), error) {
 	}
 	balancer := provideBalancer()
 	loginService := service.NewLoginService(authManager, jwtManager, loginMetrics, resolver, balancer)
-	configDAO, err := dao.NewConfigDAO(baseApp)
+	gameConfigConfig := provideGameConfigConfig(cfg)
+	configDAO, err := dao.NewConfigDAO(gameConfigConfig, baseApp)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -101,6 +102,14 @@ func provideRegistryConfig(cfg *Config) *etcd.Config {
 // provideMetricsConfig 提供指标配置
 func provideMetricsConfig(cfg *Config) *metrics.Config {
 	return &cfg.Metrics
+}
+
+// provideGameConfigConfig 提供游戏配置表加载配置
+func provideGameConfigConfig(cfg *Config) *dao.GameConfigConfig {
+	return &dao.GameConfigConfig{
+		RequiredTables: cfg.GameConfig.RequiredTables,
+		OptionalTables: cfg.GameConfig.OptionalTables,
+	}
 }
 
 // provideMetricsReporter 提供指标上报器

@@ -3,6 +3,14 @@ log:
   format: console
   enable_console: true
 
+gameconfig:
+  required_tables:
+    - tbaccount
+  optional_tables:
+    - tbglobalconfig
+    - tbitem
+    - tbshopitem
+
 server:
   name: login-server
   address: :50051
