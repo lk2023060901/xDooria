@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS roles (
     nickname        VARCHAR(32) NOT NULL,               -- 昵称
     gender          SMALLINT NOT NULL DEFAULT 0,        -- 性别: 0未知 1男 2女
     signature       VARCHAR(128) NOT NULL DEFAULT '',   -- 个性签名
-    avatar_id       INT NOT NULL DEFAULT 0,             -- 头像ID
+    avatar_url      VARCHAR(256) NOT NULL DEFAULT '',    -- 头像URL
 
     -- 形象装扮
     appearance      JSONB NOT NULL DEFAULT '{}',        -- 角色外观配置（脸型、发型、肤色等）
@@ -60,7 +60,7 @@ COMMENT ON COLUMN roles.uid IS '关联用户ID';
 COMMENT ON COLUMN roles.nickname IS '昵称';
 COMMENT ON COLUMN roles.gender IS '性别: 0未知 1男 2女';
 COMMENT ON COLUMN roles.signature IS '个性签名';
-COMMENT ON COLUMN roles.avatar_id IS '头像ID';
+COMMENT ON COLUMN roles.avatar_url IS '头像URL';
 COMMENT ON COLUMN roles.appearance IS '角色外观配置（脸型、发型、肤色等）';
 COMMENT ON COLUMN roles.outfit IS '当前穿戴装扮（衣服、裤子、鞋子、配饰等）';
 COMMENT ON COLUMN roles.gold IS '金币（普通货币）';
