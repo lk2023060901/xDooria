@@ -10,7 +10,6 @@ import (
 	"github.com/lk2023060901/xdooria/pkg/logger"
 	"github.com/lk2023060901/xdooria/pkg/registry/etcd"
 	api "github.com/lk2023060901/xdooria-proto-api"
-	"github.com/lk2023060901/xdooria-proto-api/login"
 	pb "github.com/lk2023060901/xdooria-proto-common"
 	"google.golang.org/grpc/resolver"
 	"google.golang.org/protobuf/proto"
@@ -90,7 +89,7 @@ func NewLoginClient(cfg *LoginClientConfig, etcdCfg *etcd.Config, l logger.Logge
 }
 
 // Login 执行登录
-func (c *LoginClient) Login(ctx context.Context, req *login.LoginRequest) (*login.LoginResponse, error) {
+func (c *LoginClient) Login(ctx context.Context, req *api.LoginRequest) (*api.LoginResponse, error) {
 	// 序列化请求
 	payload, err := proto.Marshal(req)
 	if err != nil {
@@ -116,7 +115,7 @@ func (c *LoginClient) Login(ctx context.Context, req *login.LoginRequest) (*logi
 	}
 
 	// 解析响应
-	var loginResp login.LoginResponse
+	var loginResp api.LoginResponse
 	if err := proto.Unmarshal(respPayload, &loginResp); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}

@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"sync/atomic"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -167,6 +168,18 @@ func (c *Client) SlaveStats() []*PoolStats {
 		}
 	}
 	return stats
+}
+
+// QueryRow 查询单行（使用从库）
+func (c *Client) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
+	pool := c.getSlave()
+	return pool.QueryRow(ctx, sql, args...)
+}
+
+// Query 查询多行（使用从库）
+func (c *Client) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
+	pool := c.getSlave()
+	return pool.Query(ctx, sql, args...)
 }
 
 // validateConfig 验证配置

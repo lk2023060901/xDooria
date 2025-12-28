@@ -1,0 +1,69 @@
+log:
+  level: debug
+  format: console
+  enable_console: true
+
+gameconfig:
+  required_tables: []
+  optional_tables: []
+
+database:
+  postgres:
+    master:
+      host: localhost
+      port: 5432
+      user: xdooria
+      password: xdooria123
+      db_name: xdooria_game
+      sslmode: disable
+    pool:
+      max_conns: 100
+      min_conns: 10
+      max_conn_lifetime: 1h
+      max_conn_idle_time: 30m
+
+redis:
+  standalone:
+    host: localhost
+    port: 6379
+    password: ""
+    db: 0
+  pool:
+    max_open_conns: 200
+    max_idle_conns: 50
+    conn_max_lifetime: 1h
+    conn_max_idle_time: 30m
+
+grpc:
+  addr: :50052
+  max_recv_msg_size: 4194304
+  max_send_msg_size: 4194304
+
+prometheus:
+  namespace: game
+  http_server:
+    enabled: true
+    addr: :9092
+    path: /metrics
+  enable_go_collector: true
+  enable_process_collector: true
+
+registry:
+  endpoints:
+    - localhost:2379
+  namespace: "/xdooria"
+  dial_timeout: 5s
+  ttl: 10s
+  service_name: game
+  service_addr: localhost:50052
+
+metrics:
+  namespace: game
+  system_collect_interval: 5s
+  bandwidth:
+    enabled: true
+    window_size: 60s
+    window_buckets: 12
+  sliding_window:
+    window_size: 60s
+    bucket_count: 12

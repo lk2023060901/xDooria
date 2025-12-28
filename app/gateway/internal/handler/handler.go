@@ -2,39 +2,82 @@ package handler
 
 import (
 	"context"
-
-	"google.golang.org/protobuf/proto"
+	"strconv"
 
 	api "github.com/lk2023060901/xdooria-proto-api"
-	"github.com/lk2023060901/xdooria-proto-api/gateway"
 	common "github.com/lk2023060901/xdooria-proto-common"
+	gwsession "github.com/lk2023060901/xdooria/app/gateway/internal/session"
 	"github.com/lk2023060901/xdooria/pkg/logger"
 	"github.com/lk2023060901/xdooria/pkg/network/session"
 	"github.com/lk2023060901/xdooria/pkg/router"
 	"github.com/lk2023060901/xdooria/pkg/security"
 )
 
+// RoleProvider 提供角色查询和创建接口（由 Game 服务实现）
+type RoleProvider interface {
+	// ListRolesByUID 根据 UID 查询所有角色
+	ListRolesByUID(ctx context.Context, uid int64) ([]*api.RoleInfo, error)
+
+	// CreateRole 创建新角色
+	CreateRole(ctx context.Context, uid int64, nickname string, gender int32, appearance string) (*api.RoleInfo, error)
+
+	// CheckNicknameExists 检查昵称是否已存在
+	CheckNicknameExists(ctx context.Context, nickname string) (bool, error)
+}
+
 // GatewayHandler 处理客户端连接和消息。
 type GatewayHandler struct {
 	session.NopSessionHandler
-	logger    logger.Logger
-	jwtMgr    *security.JWTManager
-	processor router.Processor
+	logger        logger.Logger
+	jwtMgr        *security.JWTManager
+	sessionRouter *SessionRouter // Gateway 专用的 Session Router
+	processor     router.Processor
+	sessMgr       *gwsession.Manager
+	roleProvider  RoleProvider
 }
 
-func NewGatewayHandler(l logger.Logger, jwtMgr *security.JWTManager, p router.Processor) *GatewayHandler {
-	return &GatewayHandler{
-		logger:    l.Named("gateway.handler"),
-		jwtMgr:    jwtMgr,
-		processor: p,
+func NewGatewayHandler(
+	l logger.Logger,
+	jwtMgr *security.JWTManager,
+	p router.Processor,
+	sessMgr *gwsession.Manager,
+	roleProvider RoleProvider,
+) *GatewayHandler {
+	h := &GatewayHandler{
+		logger:        l.Named("gateway.handler"),
+		jwtMgr:        jwtMgr,
+		sessionRouter: NewSessionRouter(),
+		processor:     p,
+		sessMgr:       sessMgr,
+		roleProvider:  roleProvider,
 	}
+
+	// 注册所有 Gateway 特定的消息处理器
+	h.registerHandlers()
+
+	return h
+}
+
+// registerHandlers 注册所有消息处理器到 SessionRouter
+func (h *GatewayHandler) registerHandlers() {
+	// 认证相关
+	RegisterHandler(h.sessionRouter, uint32(api.OpCode_OP_AUTH_REQ), uint32(api.OpCode_OP_AUTH_RES), h.handleAuth)
+	RegisterHandler(h.sessionRouter, uint32(api.OpCode_OP_RECONNECT_REQ), uint32(api.OpCode_OP_RECONNECT_RES), h.handleReconnect)
+
+	// 角色相关
+	RegisterHandler(h.sessionRouter, uint32(api.OpCode_OP_CREATE_ROLE_REQ), uint32(api.OpCode_OP_CREATE_ROLE_RES), h.handleCreateRole)
+	RegisterHandler(h.sessionRouter, uint32(api.OpCode_OP_SELECT_ROLE_REQ), uint32(api.OpCode_OP_SELECT_ROLE_RES), h.handleSelectRole)
 }
 
 func (h *GatewayHandler) OnOpened(s session.Session) {
+	// 注册到 Session 管理器
+	h.sessMgr.Register(s)
 	h.logger.Info("client connected", "id", s.ID(), "addr", s.RemoteAddr())
 }
 
 func (h *GatewayHandler) OnClosed(s session.Session, err error) {
+	// 从 Session 管理器注销
+	h.sessMgr.Unregister(s.ID())
 	h.logger.Info("client disconnected", "id", s.ID(), "error", err)
 }
 
@@ -42,25 +85,42 @@ func (h *GatewayHandler) OnMessage(s session.Session, env *common.Envelope) {
 	op := env.Header.Op
 	payload := env.Payload
 
-	switch op {
-	case uint32(api.OpCode_OP_AUTH_REQ):
-		h.handleAuth(s, payload)
-		return
-	case uint32(api.OpCode_OP_RECONNECT_REQ):
-		h.handleReconnect(s, payload)
+	h.logger.Debug("received message", "id", s.ID(), "op", op, "len", len(payload))
+
+	// 优先使用 SessionRouter 处理 Gateway 特定消息（认证、角色相关）
+	respOp, respPayload, err := h.sessionRouter.Dispatch(s.Context(), s, op, payload)
+	if err == nil {
+		// SessionRouter 成功处理，发送响应
+		respEnv := &common.Envelope{
+			Header:  &common.MessageHeader{Op: respOp},
+			Payload: respPayload,
+		}
+		if err := s.Send(s.Context(), respEnv); err != nil {
+			h.logger.Error("send response failed", "id", s.ID(), "error", err)
+		}
 		return
 	}
 
-	h.logger.Debug("received message", "id", s.ID(), "op", op, "len", len(payload))
+	// SessionRouter 未找到 handler，转发到业务服务（Game）
+	// 1. 检查是否已选择角色
+	gwSess, ok := h.sessMgr.Get(s.ID())
+	if !ok || !gwSess.IsRoleSelected() {
+		h.logger.Warn("message before role selection", "id", s.ID(), "op", op)
+		return
+	}
 
-	// 使用 Processor 路由到对应的 Handler
-	respOp, respPayload, err := h.processor.Process(context.Background(), op, payload)
+	// 2. 将 roleID 放入 Context
+	roleID := gwSess.GetRoleID()
+	ctx := router.WithRoleID(s.Context(), roleID)
+
+	// 3. 使用 Processor 处理业务消息（会通过 gRPC 转发到 Game）
+	respOp, respPayload, err = h.processor.Process(ctx, op, payload)
 	if err != nil {
 		h.logger.Error("process message failed", "id", s.ID(), "op", op, "error", err)
 		return
 	}
 
-	// 发送响应
+	// 4. 发送响应
 	respEnv := &common.Envelope{
 		Header:  &common.MessageHeader{Op: respOp},
 		Payload: respPayload,
@@ -71,15 +131,7 @@ func (h *GatewayHandler) OnMessage(s session.Session, env *common.Envelope) {
 }
 
 // handleAuth 处理首次认证请求
-func (h *GatewayHandler) handleAuth(s session.Session, payload []byte) {
-	// 解析 AuthRequest
-	req := &gateway.AuthRequest{}
-	if err := proto.Unmarshal(payload, req); err != nil {
-		h.logger.Warn("failed to unmarshal AuthRequest", "id", s.ID(), "error", err)
-		h.sendAuthResponse(s, uint32(api.ErrorCode_ERR_INTERNAL), "")
-		return
-	}
-
+func (h *GatewayHandler) handleAuth(ctx context.Context, s session.Session, req *api.AuthRequest) (*api.AuthResponse, error) {
 	// 验证 Login 签发的 token
 	claims, err := h.jwtMgr.ValidateToken(req.LoginToken)
 	if err != nil {
@@ -88,8 +140,30 @@ func (h *GatewayHandler) handleAuth(s session.Session, payload []byte) {
 		if err == security.ErrTokenExpired {
 			code = uint32(api.ErrorCode_ERR_TOKEN_EXPIRED)
 		}
-		h.sendAuthResponse(s, code, "")
-		return
+		return &api.AuthResponse{Code: code}, nil
+	}
+
+	// 从 JWT 中提取 uid
+	uidStr, ok := claims.Get("uid").(string)
+	if !ok {
+		h.logger.Error("uid not found in token", "id", s.ID())
+		return &api.AuthResponse{Code: uint32(api.ErrorCode_ERR_INTERNAL)}, nil
+	}
+
+	uid, err := strconv.ParseInt(uidStr, 10, 64)
+	if err != nil {
+		h.logger.Error("failed to parse uid", "id", s.ID(), "uid_str", uidStr, "error", err)
+		return &api.AuthResponse{Code: uint32(api.ErrorCode_ERR_INTERNAL)}, nil
+	}
+
+	// 查询该用户的所有角色
+	var roles []*api.RoleInfo
+	if h.roleProvider != nil {
+		roles, err = h.roleProvider.ListRolesByUID(ctx, uid)
+		if err != nil {
+			h.logger.Error("failed to list roles", "id", s.ID(), "uid", uid, "error", err)
+			return &api.AuthResponse{Code: uint32(api.ErrorCode_ERR_INTERNAL)}, nil
+		}
 	}
 
 	// 生成 Gateway 的 SessionToken（使用 Gateway 配置的过期时间）
@@ -98,24 +172,27 @@ func (h *GatewayHandler) handleAuth(s session.Session, payload []byte) {
 	})
 	if err != nil {
 		h.logger.Error("failed to generate session token", "id", s.ID(), "error", err)
-		h.sendAuthResponse(s, uint32(api.ErrorCode_ERR_INTERNAL), "")
-		return
+		return &api.AuthResponse{Code: uint32(api.ErrorCode_ERR_INTERNAL)}, nil
 	}
 
-	h.logger.Info("client authenticated", "id", s.ID(), "uid", claims.Get("uid"))
-	h.sendAuthResponse(s, uint32(api.ErrorCode_ERR_SUCCESS), sessionToken)
+	// 更新 Session 认证状态
+	h.sessMgr.UpdateAuthState(s.ID(), uid)
+
+	h.logger.Info("client authenticated",
+		"id", s.ID(),
+		"uid", uid,
+		"role_count", len(roles),
+	)
+
+	return &api.AuthResponse{
+		Code:  uint32(api.ErrorCode_ERR_SUCCESS),
+		Token: sessionToken,
+		Uid:   uint64(uid),
+	}, nil
 }
 
 // handleReconnect 处理重连请求
-func (h *GatewayHandler) handleReconnect(s session.Session, payload []byte) {
-	// 解析 ReconnectRequest
-	req := &gateway.ReconnectRequest{}
-	if err := proto.Unmarshal(payload, req); err != nil {
-		h.logger.Warn("failed to unmarshal ReconnectRequest", "id", s.ID(), "error", err)
-		h.sendReconnectResponse(s, uint32(api.ErrorCode_ERR_INTERNAL), "")
-		return
-	}
-
+func (h *GatewayHandler) handleReconnect(ctx context.Context, s session.Session, req *api.ReconnectRequest) (*api.ReconnectResponse, error) {
 	// 验证 SessionToken
 	claims, err := h.jwtMgr.ValidateToken(req.Token)
 	if err != nil {
@@ -124,8 +201,7 @@ func (h *GatewayHandler) handleReconnect(s session.Session, payload []byte) {
 		if err == security.ErrTokenExpired {
 			code = uint32(api.ErrorCode_ERR_TOKEN_EXPIRED)
 		}
-		h.sendReconnectResponse(s, code, "")
-		return
+		return &api.ReconnectResponse{Code: code}, nil
 	}
 
 	// 续期：生成新的 SessionToken
@@ -134,42 +210,144 @@ func (h *GatewayHandler) handleReconnect(s session.Session, payload []byte) {
 	})
 	if err != nil {
 		h.logger.Error("failed to generate new session token", "id", s.ID(), "error", err)
-		h.sendReconnectResponse(s, uint32(api.ErrorCode_ERR_INTERNAL), "")
-		return
+		return &api.ReconnectResponse{Code: uint32(api.ErrorCode_ERR_INTERNAL)}, nil
 	}
 
 	h.logger.Info("client reconnected", "id", s.ID(), "uid", claims.Get("uid"))
-	h.sendReconnectResponse(s, uint32(api.ErrorCode_ERR_SUCCESS), newToken)
+	return &api.ReconnectResponse{
+		Code:  uint32(api.ErrorCode_ERR_SUCCESS),
+		Token: newToken,
+	}, nil
 }
 
-// sendAuthResponse 发送认证响应
-func (h *GatewayHandler) sendAuthResponse(s session.Session, code uint32, token string) {
-	resp := &gateway.AuthResponse{
-		Code:  code,
-		Token: token,
+// handleCreateRole 处理创建角色请求
+func (h *GatewayHandler) handleCreateRole(ctx context.Context, s session.Session, req *api.CreateRoleRequest) (*api.CreateRoleResponse, error) {
+	// 获取 Gateway Session
+	gwSess, ok := h.sessMgr.Get(s.ID())
+	if !ok {
+		h.logger.Error("session not found in manager", "id", s.ID())
+		return &api.CreateRoleResponse{Code: uint32(api.ErrorCode_ERR_INTERNAL)}, nil
 	}
-	data, _ := proto.Marshal(resp)
 
-	env := &common.Envelope{
-		Header:  &common.MessageHeader{Op: uint32(api.OpCode_OP_AUTH_RES)},
-		Payload: data,
+	// 检查是否已认证
+	if !gwSess.IsAuthenticated() {
+		h.logger.Warn("create role before authentication", "id", s.ID())
+		return &api.CreateRoleResponse{Code: uint32(api.ErrorCode_ERR_NOT_AUTHENTICATED)}, nil
 	}
-	_ = s.Send(s.Context(), env)
+
+	uid := gwSess.GetUID()
+
+	// 验证昵称
+	if len(req.Nickname) == 0 || len(req.Nickname) > 32 {
+		h.logger.Warn("invalid nickname length", "id", s.ID(), "nickname", req.Nickname)
+		return &api.CreateRoleResponse{Code: uint32(api.ErrorCode_ERR_NICKNAME_INVALID)}, nil
+	}
+
+	// 检查昵称是否已存在
+	if h.roleProvider == nil {
+		h.logger.Error("role provider not available", "id", s.ID())
+		return &api.CreateRoleResponse{Code: uint32(api.ErrorCode_ERR_INTERNAL)}, nil
+	}
+
+	exists, err := h.roleProvider.CheckNicknameExists(ctx, req.Nickname)
+	if err != nil {
+		h.logger.Error("failed to check nickname", "id", s.ID(), "nickname", req.Nickname, "error", err)
+		return &api.CreateRoleResponse{Code: uint32(api.ErrorCode_ERR_INTERNAL)}, nil
+	}
+	if exists {
+		h.logger.Warn("nickname already exists", "id", s.ID(), "nickname", req.Nickname)
+		return &api.CreateRoleResponse{Code: uint32(api.ErrorCode_ERR_NICKNAME_EXISTS)}, nil
+	}
+
+	// 检查该用户的角色数量是否达到上限（例如最多3个角色）
+	roles, err := h.roleProvider.ListRolesByUID(ctx, uid)
+	if err != nil {
+		h.logger.Error("failed to list roles", "id", s.ID(), "uid", uid, "error", err)
+		return &api.CreateRoleResponse{Code: uint32(api.ErrorCode_ERR_INTERNAL)}, nil
+	}
+	if len(roles) >= 3 { // 最多3个角色
+		h.logger.Warn("role limit exceeded", "id", s.ID(), "uid", uid, "count", len(roles))
+		return &api.CreateRoleResponse{Code: uint32(api.ErrorCode_ERR_ROLE_LIMIT_EXCEEDED)}, nil
+	}
+
+	// 创建角色
+	roleInfo, err := h.roleProvider.CreateRole(ctx, uid, req.Nickname, req.Gender, req.Appearance)
+	if err != nil {
+		h.logger.Error("failed to create role", "id", s.ID(), "uid", uid, "nickname", req.Nickname, "error", err)
+		return &api.CreateRoleResponse{Code: uint32(api.ErrorCode_ERR_INTERNAL)}, nil
+	}
+
+	h.logger.Info("role created",
+		"id", s.ID(),
+		"uid", uid,
+		"role_id", roleInfo.RoleId,
+		"nickname", roleInfo.Nickname,
+	)
+
+	return &api.CreateRoleResponse{
+		Code: uint32(api.ErrorCode_ERR_SUCCESS),
+		Role: roleInfo,
+	}, nil
 }
 
-// sendReconnectResponse 发送重连响应
-func (h *GatewayHandler) sendReconnectResponse(s session.Session, code uint32, token string) {
-	resp := &gateway.ReconnectResponse{
-		Code:  code,
-		Token: token,
+// handleSelectRole 处理选择角色请求
+func (h *GatewayHandler) handleSelectRole(ctx context.Context, s session.Session, req *api.SelectRoleRequest) (*api.SelectRoleResponse, error) {
+	// 获取 Gateway Session
+	gwSess, ok := h.sessMgr.Get(s.ID())
+	if !ok {
+		h.logger.Error("session not found in manager", "id", s.ID())
+		return &api.SelectRoleResponse{Code: uint32(api.ErrorCode_ERR_INTERNAL)}, nil
 	}
-	data, _ := proto.Marshal(resp)
 
-	env := &common.Envelope{
-		Header:  &common.MessageHeader{Op: uint32(api.OpCode_OP_RECONNECT_RES)},
-		Payload: data,
+	// 检查是否已认证
+	if !gwSess.IsAuthenticated() {
+		h.logger.Warn("select role before authentication", "id", s.ID())
+		return &api.SelectRoleResponse{Code: uint32(api.ErrorCode_ERR_NOT_AUTHENTICATED)}, nil
 	}
-	_ = s.Send(s.Context(), env)
+
+	uid := gwSess.GetUID()
+
+	// 验证角色是否属于该用户
+	// 这里可以选择查询数据库验证，或者相信客户端在认证时收到的角色列表
+	// 为了安全起见，我们应该验证角色归属
+	if h.roleProvider != nil {
+		roles, err := h.roleProvider.ListRolesByUID(ctx, uid)
+		if err != nil {
+			h.logger.Error("failed to verify role ownership", "id", s.ID(), "uid", uid, "role_id", req.RoleId, "error", err)
+			return &api.SelectRoleResponse{Code: uint32(api.ErrorCode_ERR_INTERNAL)}, nil
+		}
+
+		// 检查角色是否在列表中
+		roleFound := false
+		for _, role := range roles {
+			if role.RoleId == req.RoleId {
+				roleFound = true
+				break
+			}
+		}
+
+		if !roleFound {
+			h.logger.Warn("role not owned by user", "id", s.ID(), "uid", uid, "role_id", req.RoleId)
+			return &api.SelectRoleResponse{Code: uint32(api.ErrorCode_ERR_INVALID_ROLE)}, nil
+		}
+	}
+
+	// 更新 Session 中的角色状态
+	if err := h.sessMgr.UpdateRoleState(s.ID(), req.RoleId); err != nil {
+		h.logger.Error("failed to update role state", "id", s.ID(), "role_id", req.RoleId, "error", err)
+		return &api.SelectRoleResponse{Code: uint32(api.ErrorCode_ERR_INTERNAL)}, nil
+	}
+
+	h.logger.Info("role selected",
+		"id", s.ID(),
+		"uid", uid,
+		"role_id", req.RoleId,
+	)
+
+	return &api.SelectRoleResponse{
+		Code:   uint32(api.ErrorCode_ERR_SUCCESS),
+		RoleId: req.RoleId,
+	}, nil
 }
 
 func (h *GatewayHandler) OnError(s session.Session, err error) {

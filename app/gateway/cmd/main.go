@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/lk2023060901/xdooria/app/gateway/internal/handler"
+	gwsession "github.com/lk2023060901/xdooria/app/gateway/internal/session"
 	"github.com/lk2023060901/xdooria/pkg/app"
 	"github.com/lk2023060901/xdooria/pkg/logger"
 	"github.com/lk2023060901/xdooria/pkg/network/framer"
@@ -70,8 +71,11 @@ func main() {
 	r := router.New()
 	processor := router.NewProcessor(r)
 
-	// 6. 初始化业务 Handler
-	gwHandler := handler.NewGatewayHandler(l, jwtMgr, processor)
+	// 6. 初始化 Session Manager
+	sessMgr := gwsession.NewManager()
+
+	// 7. 初始化业务 Handler (roleProvider 暂时传 nil，后续集成 Game 服务)
+	gwHandler := handler.NewGatewayHandler(l, jwtMgr, processor, sessMgr, nil)
 
 	// 7. 初始化 Session 配置（注入 Framer）
 	sessCfg := cfg.Session

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	api "github.com/lk2023060901/xdooria-proto-api"
-	"github.com/lk2023060901/xdooria-proto-api/login"
 	"github.com/lk2023060901/xdooria/app/login/internal/metrics"
 	"github.com/lk2023060901/xdooria/component/auth"
 	"github.com/lk2023060901/xdooria/pkg/balancer"
@@ -130,7 +129,7 @@ func (s *LoginService) Close() {
 	}
 }
 
-func (s *LoginService) Login(ctx context.Context, req *login.LoginRequest) (*login.LoginResponse, error) {
+func (s *LoginService) Login(ctx context.Context, req *api.LoginRequest) (*api.LoginResponse, error) {
 	start := time.Now()
 	loginType := req.LoginType
 	loginTypeStr := loginType.String()
@@ -169,7 +168,7 @@ func (s *LoginService) Login(ctx context.Context, req *login.LoginRequest) (*log
 	var uid uint64
 	fmt.Sscanf(identity.UID, "%d", &uid)
 
-	return &login.LoginResponse{
+	return &api.LoginResponse{
 		Token:       token,
 		Uid:         uid,
 		Nickname:    identity.Nickname,

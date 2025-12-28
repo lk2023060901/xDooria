@@ -10,7 +10,7 @@ import (
 	"github.com/lk2023060901/xdooria/app/portal/internal/metrics"
 	"github.com/lk2023060901/xdooria/pkg/logger"
 	"github.com/lk2023060901/xdooria/pkg/web"
-	"github.com/lk2023060901/xdooria-proto-api/login"
+	api "github.com/lk2023060901/xdooria-proto-api"
 	pb "github.com/lk2023060901/xdooria-proto-common"
 )
 
@@ -81,7 +81,7 @@ func (h *LoginHandler) Login(c *gin.Context) {
 	}
 
 	// 构建 gRPC 请求
-	grpcReq := &login.LoginRequest{
+	grpcReq := &api.LoginRequest{
 		LoginType:   pb.LoginType(req.LoginType),
 		Credentials: credentials,
 	}

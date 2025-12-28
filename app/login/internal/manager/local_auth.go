@@ -6,7 +6,6 @@ import (
 
 	"github.com/lk2023060901/xdooria/component/auth"
 	"github.com/lk2023060901/xdooria/pkg/gameconfig"
-	"github.com/lk2023060901/xdooria-proto-api/login"
 	pb "github.com/lk2023060901/xdooria-proto-common"
 	"google.golang.org/protobuf/proto"
 )
@@ -27,7 +26,7 @@ func (a *LocalAuthenticator) Type() pb.LoginType {
 
 func (a *LocalAuthenticator) Authenticate(ctx context.Context, cred []byte) (*auth.Identity, error) {
 	// 1. 解析凭证
-	var localCred login.LocalCredentials
+	var localCred pb.AccountPassword
 	if err := proto.Unmarshal(cred, &localCred); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal local credentials: %w", err)
 	}
