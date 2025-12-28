@@ -1,0 +1,124 @@
+package handler
+
+import (
+	"context"
+
+	internal "github.com/lk2023060901/xdooria-proto-internal"
+	"github.com/lk2023060901/xdooria/app/game/internal/service"
+	"github.com/lk2023060901/xdooria/pkg/logger"
+)
+
+// RoleProviderHandler 实现 RoleProvider gRPC 服务
+type RoleProviderHandler struct {
+	internal.UnimplementedRoleProviderServer
+
+	logger  logger.Logger
+	roleSvc *service.RoleService
+}
+
+// NewRoleProviderHandler 创建 RoleProvider 处理器
+func NewRoleProviderHandler(l logger.Logger, roleSvc *service.RoleService) *RoleProviderHandler {
+	return &RoleProviderHandler{
+		logger:  l.Named("handler.role_provider"),
+		roleSvc: roleSvc,
+	}
+}
+
+// ListRolesByUID 根据 UID 查询所有角色
+func (h *RoleProviderHandler) ListRolesByUID(ctx context.Context, req *internal.ListRolesByUIDRequest) (*internal.ListRolesByUIDResponse, error) {
+	h.logger.Debug("list roles by uid request", "uid", req.Uid)
+
+	roles, err := h.roleSvc.ListRolesByUID(ctx, req.Uid)
+	if err != nil {
+		h.logger.Error("list roles by uid failed", "uid", req.Uid, "error", err)
+		return &internal.ListRolesByUIDResponse{
+			Code: 1,
+		}, nil
+	}
+
+	// 转换为 proto 格式
+	protoRoles := make([]*internal.RoleInfo, len(roles))
+	for i, role := range roles {
+		protoRoles[i] = &internal.RoleInfo{
+			RoleId:     role.ID,
+			Uid:        role.UID,
+			Nickname:   role.Nickname,
+			Level:      role.Level,
+			Gender:     role.Gender,
+			Appearance: role.Appearance,
+			CreatedAt:  role.CreatedAt.Unix(),
+		}
+	}
+
+	h.logger.Debug("list roles by uid success", "uid", req.Uid, "count", len(protoRoles))
+
+	return &internal.ListRolesByUIDResponse{
+		Code:  0,
+		Roles: protoRoles,
+	}, nil
+}
+
+// CreateRole 创建角色
+func (h *RoleProviderHandler) CreateRole(ctx context.Context, req *internal.CreateRoleRequest) (*internal.CreateRoleResponse, error) {
+	h.logger.Info("create role request",
+		"uid", req.Uid,
+		"nickname", req.Nickname,
+		"gender", req.Gender,
+	)
+
+	role, err := h.roleSvc.CreateRole(ctx, req.Uid, req.Nickname, req.Gender, req.Appearance)
+	if err != nil {
+		h.logger.Error("create role failed",
+			"uid", req.Uid,
+			"nickname", req.Nickname,
+			"error", err,
+		)
+		return &internal.CreateRoleResponse{
+			Code: 1,
+		}, nil
+	}
+
+	h.logger.Info("create role success",
+		"uid", req.Uid,
+		"role_id", role.ID,
+		"nickname", role.Nickname,
+	)
+
+	return &internal.CreateRoleResponse{
+		Code: 0,
+		Role: &internal.RoleInfo{
+			RoleId:     role.ID,
+			Uid:        role.UID,
+			Nickname:   role.Nickname,
+			Level:      role.Level,
+			Gender:     role.Gender,
+			Appearance: role.Appearance,
+			CreatedAt:  role.CreatedAt.Unix(),
+		},
+	}, nil
+}
+
+// CheckNicknameExists 检查昵称是否已存在
+func (h *RoleProviderHandler) CheckNicknameExists(ctx context.Context, req *internal.CheckNicknameExistsRequest) (*internal.CheckNicknameExistsResponse, error) {
+	h.logger.Debug("check nickname exists request", "nickname", req.Nickname)
+
+	exists, err := h.roleSvc.CheckNicknameExists(ctx, req.Nickname)
+	if err != nil {
+		h.logger.Error("check nickname exists failed",
+			"nickname", req.Nickname,
+			"error", err,
+		)
+		return &internal.CheckNicknameExistsResponse{
+			Exists: false,
+		}, nil
+	}
+
+	h.logger.Debug("check nickname exists result",
+		"nickname", req.Nickname,
+		"exists", exists,
+	)
+
+	return &internal.CheckNicknameExistsResponse{
+		Exists: exists,
+	}, nil
+}

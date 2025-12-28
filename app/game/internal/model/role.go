@@ -46,6 +46,29 @@ const (
 	RoleStatusBanned = 1 // 封禁
 )
 
+// NewRole 创建新角色实例
+func NewRole(uid int64, nickname string, gender int16, appearance json.RawMessage) *Role {
+	now := time.Now()
+	return &Role{
+		UID:        uid,
+		Nickname:   nickname,
+		Gender:     gender,
+		Appearance: appearance,
+		Outfit:     json.RawMessage("{}"),
+		Gold:       0,
+		Diamond:    0,
+		Level:      1,
+		Exp:        0,
+		VIPLevel:   0,
+		VIPExp:     0,
+		Status:     RoleStatusNormal,
+		Signature:  "",
+		AvatarURL:  "",
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	}
+}
+
 // IsBanned 判断角色是否被封禁
 func (r *Role) IsBanned() bool {
 	if r.Status != RoleStatusBanned {

@@ -4,6 +4,7 @@
 package main
 
 import (
+	gamepb "github.com/lk2023060901/xdooria-proto-internal/game"
 	"context"
 
 	"github.com/google/wire"
@@ -48,10 +49,11 @@ func InitApp(cfg *Config, l logger.Logger) (app.Application, func(), error) {
 		// 6. 管理层 (Manager)
 		manager.NewRoleManager,
 		manager.NewSessionManager,
-		manager.NewBroadcastManager,
+		manager.NewSceneManager,
 
 		// 7. 服务层 (Service)
 		service.NewRoleService,
+		service.NewSceneService,
 		service.NewMessageService,
 
 		// 8. 接口层 (Handler)
@@ -165,8 +167,8 @@ func provideAppComponents(
 	cfg *Config,
 	opts []app.Option,
 ) app.AppComponents {
-	// TODO: 注册 gRPC 服务
-	// gamepb.RegisterGameServiceServer(grpcServer.Server(), gameHandler)
+	// 注册 gRPC 服务
+	gamepb.RegisterGameServiceServer(grpcServer.GetGRPCServer(), gameHandler)
 
 	// 注册 Game 指标到 Prometheus
 	_ = gameMetrics.Register(promClient.Registry())
@@ -178,7 +180,7 @@ func provideAppComponents(
 	serviceStarter := &serviceRegistrar{
 		registrar:   registrar,
 		serviceName: cfg.Registry.ServiceName,
-		serviceAddr: cfg.GRPC.Address,
+		serviceAddr: cfg.Registry.ServiceAddr,
 		logger:      baseApp.AppLogger(),
 	}
 

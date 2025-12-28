@@ -8,6 +8,7 @@ package main
 
 import (
 	"context"
+	"github.com/lk2023060901/xdooria-proto-internal/game"
 	"github.com/lk2023060901/xdooria/app/game/internal/dao"
 	"github.com/lk2023060901/xdooria/app/game/internal/handler"
 	"github.com/lk2023060901/xdooria/app/game/internal/manager"
@@ -56,8 +57,9 @@ func InitApp(cfg *Config, l logger.Logger) (app.Application, func(), error) {
 	sessionManager := manager.NewSessionManager(l, cacheDAO)
 	roleService := service.NewRoleService(l, roleManager, sessionManager, roleDAO, gameMetrics)
 	router := provideRouter()
-	broadcastManager := manager.NewBroadcastManager(l, sessionManager)
-	messageService := service.NewMessageService(l, router, roleManager, broadcastManager, gameMetrics)
+	sceneManager := manager.NewSceneManager(l)
+	sceneService := service.NewSceneService(l, roleManager, sceneManager, gameMetrics)
+	messageService := service.NewMessageService(l, router, roleManager, sceneService, gameMetrics)
 	gameHandler := handler.NewGameHandler(l, roleService, messageService)
 	prometheusConfig := providePrometheusConfig(cfg)
 	prometheusClient, err := prometheus.New(prometheusConfig)
@@ -163,6 +165,7 @@ func provideAppComponents(
 	cfg *Config,
 	opts []app.Option,
 ) app.AppComponents {
+	gamepb.RegisterGameServiceServer(grpcServer.GetGRPCServer(), gameHandler)
 
 	_ = gameMetrics.Register(promClient.Registry())
 
@@ -171,7 +174,7 @@ func provideAppComponents(
 	serviceStarter := &serviceRegistrar{
 		registrar:   registrar,
 		serviceName: cfg.Registry.ServiceName,
-		serviceAddr: cfg.GRPC.Address,
+		serviceAddr: cfg.Registry.ServiceAddr,
 		logger:      baseApp.AppLogger(),
 	}
 

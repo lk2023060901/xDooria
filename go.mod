@@ -33,6 +33,7 @@ require (
 	github.com/lestrrat-go/file-rotatelogs v2.4.0+incompatible
 	github.com/lk2023060901/xdooria-proto-api v0.0.4
 	github.com/lk2023060901/xdooria-proto-common v0.0.4
+	github.com/lk2023060901/xdooria-proto-internal v0.0.0-20251227102803-f1e810a17960
 	github.com/panjf2000/ants/v2 v2.11.3
 	github.com/panjf2000/gnet/v2 v2.9.6
 	github.com/pierrec/lz4/v4 v4.1.23
@@ -175,3 +176,5 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/lk2023060901/xdooria-proto-internal => ../xDooria-proto-internal

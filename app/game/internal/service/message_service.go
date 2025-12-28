@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	api "github.com/lk2023060901/xdooria-proto-api"
 	"github.com/lk2023060901/xdooria/app/game/internal/manager"
 	"github.com/lk2023060901/xdooria/app/game/internal/metrics"
 	gamerouter "github.com/lk2023060901/xdooria/app/game/internal/router"
@@ -17,7 +18,7 @@ type MessageService struct {
 	logger       logger.Logger
 	roleRouter   *gamerouter.RoleRouter
 	roleMgr      *manager.RoleManager
-	broadcastMgr *manager.BroadcastManager
+	sceneService *SceneService
 	metrics      *metrics.GameMetrics
 }
 
@@ -26,14 +27,14 @@ func NewMessageService(
 	l logger.Logger,
 	r router.Router,
 	roleMgr *manager.RoleManager,
-	broadcastMgr *manager.BroadcastManager,
+	sceneService *SceneService,
 	m *metrics.GameMetrics,
 ) *MessageService {
 	s := &MessageService{
 		logger:       l.Named("service.message"),
 		roleRouter:   gamerouter.NewRoleRouter(r),
 		roleMgr:      roleMgr,
-		broadcastMgr: broadcastMgr,
+		sceneService: sceneService,
 		metrics:      m,
 	}
 
@@ -45,12 +46,17 @@ func NewMessageService(
 
 // registerHandlers 注册所有游戏消息处理器
 func (s *MessageService) registerHandlers() {
-	// TODO: 注册具体的游戏消息处理器
-	// 示例：
-	// gamerouter.RegisterHandler(s.roleRouter,
-	//     uint32(api.OpCode_OP_ENTER_SCENE_REQ),
-	//     uint32(api.OpCode_OP_ENTER_SCENE_RES),
-	//     s.handleEnterScene)
+	// 场景相关
+	gamerouter.RegisterHandler(s.roleRouter,
+		uint32(api.OpCode_OP_ENTER_SCENE_REQ),
+		uint32(api.OpCode_OP_ENTER_SCENE_RES),
+		s.handleEnterScene)
+}
+
+// handleEnterScene 处理进入场景请求
+func (s *MessageService) handleEnterScene(ctx context.Context, roleID int64, req *api.EnterSceneRequest) (*api.EnterSceneResponse, error) {
+	// 调用 SceneService 处理
+	return s.sceneService.HandleEnterScene(ctx, roleID)
 }
 
 // HandleMessage 处理从 Gateway 转发来的消息
@@ -69,13 +75,21 @@ func (s *MessageService) HandleMessage(ctx context.Context, roleID int64, opCode
 		"payload_size", len(payload),
 	)
 
-	// 1. 验证角色是否在线
+	// 1. 验证角色是否在线，如果不在线则自动加载
 	role, ok := s.roleMgr.GetRole(roleID)
 	if !ok {
-		s.logger.Warn("role not found in memory",
+		s.logger.Info("role not in memory, loading from database",
 			"role_id", roleID,
 		)
-		return nil, fmt.Errorf("role not online")
+		var err error
+		role, err = s.roleMgr.LoadRole(ctx, roleID)
+		if err != nil {
+			s.logger.Error("failed to load role",
+				"role_id", roleID,
+				"error", err,
+			)
+			return nil, fmt.Errorf("failed to load role: %w", err)
+		}
 	}
 
 	// 2. 检查角色状态
@@ -108,7 +122,9 @@ func (s *MessageService) HandleMessage(ctx context.Context, roleID int64, opCode
 	return respPayload, nil
 }
 
+// TODO: BroadcastToAll 需要在 gateway 通信实现后启用
 // BroadcastToAll 广播消息给所有在线角色
+/*
 func (s *MessageService) BroadcastToAll(ctx context.Context, opCode uint32, payload []byte) error {
 	s.logger.Info("broadcasting to all online roles",
 		"op_code", opCode,
@@ -125,8 +141,11 @@ func (s *MessageService) BroadcastToAll(ctx context.Context, opCode uint32, payl
 
 	return nil
 }
+*/
 
+// TODO: SendToRole 需要在 gateway 通信实现后启用
 // SendToRole 发送消息给指定角色
+/*
 func (s *MessageService) SendToRole(ctx context.Context, roleID int64, opCode uint32, payload []byte) error {
 	s.logger.Debug("sending message to role",
 		"role_id", roleID,
@@ -145,3 +164,4 @@ func (s *MessageService) SendToRole(ctx context.Context, roleID int64, opCode ui
 
 	return nil
 }
+*/

@@ -3,6 +3,13 @@ log:
   format: console
   enable_console: true
 
+zone:
+  id: 1001
+  name: "电信1"
+
+gateway:
+  id: "gateway-001"
+
 tcp:
   addr: "0.0.0.0:9000"
   network: tcp
@@ -27,3 +34,34 @@ framer:
   enable_encrypt: false
   enable_compress: false
   compress_min_bytes: 1024
+
+redis:
+  standalone:
+    host: localhost
+    port: 6379
+    password: ""
+    db: 0
+  pool:
+    max_open_conns: 200
+    max_idle_conns: 50
+    conn_max_lifetime: 1h
+    conn_max_idle_time: 30m
+
+game:
+
+database:
+  standalone:
+    host: localhost
+    port: 5432
+    user: xdooria
+    password: "xdooria123"
+    db_name: xdooria_game
+    ssl_mode: disable
+  pool:
+    max_conns: 50
+    min_conns: 5
+    max_conn_lifetime: 1h
+    max_conn_idle_time: 30m
+    health_check_period: 1m
+  connect_timeout: 10s
+  query_timeout: 30s

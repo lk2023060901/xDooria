@@ -3,24 +3,30 @@ log:
   format: console
   enable_console: true
 
+zone:
+  id: 1001
+  name: "电信1"
+
+session:
+  disconnect_timeout: 60s
+
 gameconfig:
   required_tables: []
   optional_tables: []
 
 database:
-  postgres:
-    master:
-      host: localhost
-      port: 5432
-      user: xdooria
-      password: xdooria123
-      db_name: xdooria_game
-      sslmode: disable
-    pool:
-      max_conns: 100
-      min_conns: 10
-      max_conn_lifetime: 1h
-      max_conn_idle_time: 30m
+  master:
+    host: localhost
+    port: 5432
+    user: xdooria
+    password: xdooria123
+    db_name: xdooria_game
+    sslmode: disable
+  pool:
+    max_conns: 100
+    min_conns: 10
+    max_conn_lifetime: 1h
+    max_conn_idle_time: 30m
 
 redis:
   standalone:

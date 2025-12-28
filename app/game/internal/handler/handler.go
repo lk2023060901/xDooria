@@ -1,17 +1,16 @@
 package handler
 
 import (
+	"context"
+
+	gamepb "github.com/lk2023060901/xdooria-proto-internal/game"
 	"github.com/lk2023060901/xdooria/app/game/internal/service"
 	"github.com/lk2023060901/xdooria/pkg/logger"
 )
 
 // GameHandler gRPC 处理器
-// TODO: 需要等待 game.proto 定义完成后实现完整接口
-// type GameHandler struct {
-// 	gamepb.UnimplementedGameServiceServer
-// 	...
-// }
 type GameHandler struct {
+	gamepb.UnimplementedGameServiceServer
 	logger     logger.Logger
 	roleSvc    *service.RoleService
 	messageSvc *service.MessageService
@@ -30,34 +29,31 @@ func NewGameHandler(
 	}
 }
 
-// TODO: 实现 gRPC 接口方法
-//
 // ForwardMessage 处理从 Gateway 转发的消息
-// func (h *GameHandler) ForwardMessage(ctx context.Context, req *gamepb.ForwardMessageRequest) (*gamepb.ForwardMessageResponse, error) {
-// 	h.logger.Debug("received forward message request",
-// 		"role_id", req.RoleId,
-// 		"op_code", req.OpCode,
-// 	)
-//
-// 	resp, err := h.messageSvc.HandleMessage(ctx, req.RoleId, req.OpCode, req.Payload)
-// 	if err != nil {
-// 		h.logger.Error("failed to handle message",
-// 			"role_id", req.RoleId,
-// 			"op_code", req.OpCode,
-// 			"error", err,
-// 		)
-// 		return &gamepb.ForwardMessageResponse{
-// 			Success: false,
-// 			Error:   err.Error(),
-// 		}, nil
-// 	}
-//
-// 	return &gamepb.ForwardMessageResponse{
-// 		Success: true,
-// 		Payload: resp,
-// 	}, nil
-// }
-//
+func (h *GameHandler) ForwardMessage(ctx context.Context, req *gamepb.ForwardMessageRequest) (*gamepb.ForwardMessageResponse, error) {
+	h.logger.Debug("received forward message request",
+		"role_id", req.RoleId,
+		"op_code", req.OpCode,
+	)
+
+	resp, err := h.messageSvc.HandleMessage(ctx, req.RoleId, req.OpCode, req.Payload)
+	if err != nil {
+		h.logger.Error("failed to handle message",
+			"role_id", req.RoleId,
+			"op_code", req.OpCode,
+			"error", err,
+		)
+		return &gamepb.ForwardMessageResponse{
+			Success: false,
+			Error:   err.Error(),
+		}, nil
+	}
+
+	return &gamepb.ForwardMessageResponse{
+		Success: true,
+		Payload: resp,
+	}, nil
+}
 // RoleOnline 处理角色上线
 // func (h *GameHandler) RoleOnline(ctx context.Context, req *gamepb.RoleOnlineRequest) (*gamepb.RoleOnlineResponse, error) {
 // 	h.logger.Info("received role online request",

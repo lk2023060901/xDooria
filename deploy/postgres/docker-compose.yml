@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: xdooria-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: xdooria
+      POSTGRES_PASSWORD: xdooria123
+      POSTGRES_DB: xdooria_game
+      PGDATA: /var/lib/postgresql/data
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../../schema:/docker-entrypoint-initdb.d
+    networks:
+      - xdooria-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U xdooria -d xdooria_game"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  xdooria-network:
+    driver: bridge

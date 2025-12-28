@@ -335,3 +335,34 @@ func (d *RoleDAO) UpdateLastLogin(ctx context.Context, roleID int64) error {
 
 	return nil
 }
+
+// CheckNicknameExists 检查昵称是否已存在
+func (d *RoleDAO) CheckNicknameExists(ctx context.Context, nickname string) (bool, error) {
+	start := time.Now()
+	defer func() {
+		duration := time.Since(start).Seconds()
+		d.metrics.RecordDBQuery("select", true, duration)
+	}()
+
+	query, args, err := squirrel.
+		Select("COUNT(*)").
+		From("roles").
+		Where(squirrel.Eq{"nickname": nickname}).
+		PlaceholderFormat(squirrel.Dollar).
+		ToSql()
+
+	if err != nil {
+		return false, fmt.Errorf("failed to build query: %w", err)
+	}
+
+	var count int64
+	if err := d.db.QueryRow(ctx, query, args...).Scan(&count); err != nil {
+		d.logger.Error("failed to check nickname exists",
+			"nickname", nickname,
+			"error", err,
+		)
+		return false, fmt.Errorf("failed to check nickname: %w", err)
+	}
+
+	return count > 0, nil
+}

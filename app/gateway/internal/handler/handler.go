@@ -6,6 +6,7 @@ import (
 
 	api "github.com/lk2023060901/xdooria-proto-api"
 	common "github.com/lk2023060901/xdooria-proto-common"
+	gamepb "github.com/lk2023060901/xdooria-proto-internal/game"
 	gwsession "github.com/lk2023060901/xdooria/app/gateway/internal/session"
 	"github.com/lk2023060901/xdooria/pkg/logger"
 	"github.com/lk2023060901/xdooria/pkg/network/session"
@@ -34,6 +35,7 @@ type GatewayHandler struct {
 	processor     router.Processor
 	sessMgr       *gwsession.Manager
 	roleProvider  RoleProvider
+	gameClient    gamepb.GameServiceClient
 }
 
 func NewGatewayHandler(
@@ -58,6 +60,30 @@ func NewGatewayHandler(
 	return h
 }
 
+func NewGatewayHandlerWithGame(
+	l logger.Logger,
+	jwtMgr *security.JWTManager,
+	p router.Processor,
+	sessMgr *gwsession.Manager,
+	roleProvider RoleProvider,
+	gameClient gamepb.GameServiceClient,
+) *GatewayHandler {
+	h := &GatewayHandler{
+		logger:        l.Named("gateway.handler"),
+		jwtMgr:        jwtMgr,
+		sessionRouter: NewSessionRouter(),
+		processor:     p,
+		sessMgr:       sessMgr,
+		roleProvider:  roleProvider,
+		gameClient:    gameClient,
+	}
+
+	// 注册所有 Gateway 特定的消息处理器
+	h.registerHandlers()
+
+	return h
+}
+
 // registerHandlers 注册所有消息处理器到 SessionRouter
 func (h *GatewayHandler) registerHandlers() {
 	// 认证相关
@@ -65,6 +91,7 @@ func (h *GatewayHandler) registerHandlers() {
 	RegisterHandler(h.sessionRouter, uint32(api.OpCode_OP_RECONNECT_REQ), uint32(api.OpCode_OP_RECONNECT_RES), h.handleReconnect)
 
 	// 角色相关
+	RegisterHandler(h.sessionRouter, uint32(api.OpCode_OP_GET_ROLES_REQ), uint32(api.OpCode_OP_GET_ROLES_RES), h.handleGetRoles)
 	RegisterHandler(h.sessionRouter, uint32(api.OpCode_OP_CREATE_ROLE_REQ), uint32(api.OpCode_OP_CREATE_ROLE_RES), h.handleCreateRole)
 	RegisterHandler(h.sessionRouter, uint32(api.OpCode_OP_SELECT_ROLE_REQ), uint32(api.OpCode_OP_SELECT_ROLE_RES), h.handleSelectRole)
 }
@@ -109,11 +136,36 @@ func (h *GatewayHandler) OnMessage(s session.Session, env *common.Envelope) {
 		return
 	}
 
-	// 2. 将 roleID 放入 Context
+	// 2. 通过 gRPC 转发到 Game 服务
 	roleID := gwSess.GetRoleID()
-	ctx := router.WithRoleID(s.Context(), roleID)
+	if h.gameClient != nil {
+		resp, err := h.gameClient.ForwardMessage(s.Context(), &gamepb.ForwardMessageRequest{
+			RoleId:  roleID,
+			OpCode:  op,
+			Payload: payload,
+		})
+		if err != nil {
+			h.logger.Error("forward to game failed", "id", s.ID(), "op", op, "error", err)
+			return
+		}
+		if !resp.Success {
+			h.logger.Error("game returned error", "id", s.ID(), "op", op, "error", resp.Error)
+			return
+		}
 
-	// 3. 使用 Processor 处理业务消息（会通过 gRPC 转发到 Game）
+		// 发送响应
+		respEnv := &common.Envelope{
+			Header:  &common.MessageHeader{Op: op + 1}, // 响应 op = 请求 op + 1
+			Payload: resp.Payload,
+		}
+		if err := s.Send(s.Context(), respEnv); err != nil {
+			h.logger.Error("send response failed", "id", s.ID(), "error", err)
+		}
+		return
+	}
+
+	// 3. 没有 gameClient，使用 Processor（兼容旧代码）
+	ctx := router.WithRoleID(s.Context(), roleID)
 	respOp, respPayload, err = h.processor.Process(ctx, op, payload)
 	if err != nil {
 		h.logger.Error("process message failed", "id", s.ID(), "op", op, "error", err)
@@ -217,6 +269,47 @@ func (h *GatewayHandler) handleReconnect(ctx context.Context, s session.Session,
 	return &api.ReconnectResponse{
 		Code:  uint32(api.ErrorCode_ERR_SUCCESS),
 		Token: newToken,
+	}, nil
+}
+
+// handleGetRoles 处理获取角色列表请求
+func (h *GatewayHandler) handleGetRoles(ctx context.Context, s session.Session, req *api.GetRolesRequest) (*api.GetRolesResponse, error) {
+	// 获取 Gateway Session
+	gwSess, ok := h.sessMgr.Get(s.ID())
+	if !ok {
+		h.logger.Error("session not found in manager", "id", s.ID())
+		return &api.GetRolesResponse{Code: uint32(api.ErrorCode_ERR_INTERNAL)}, nil
+	}
+
+	// 检查是否已认证
+	if !gwSess.IsAuthenticated() {
+		h.logger.Warn("get roles before authentication", "id", s.ID())
+		return &api.GetRolesResponse{Code: uint32(api.ErrorCode_ERR_NOT_AUTHENTICATED)}, nil
+	}
+
+	uid := gwSess.GetUID()
+
+	// 查询角色列表
+	if h.roleProvider == nil {
+		h.logger.Error("role provider not available", "id", s.ID())
+		return &api.GetRolesResponse{Code: uint32(api.ErrorCode_ERR_INTERNAL)}, nil
+	}
+
+	roles, err := h.roleProvider.ListRolesByUID(ctx, uid)
+	if err != nil {
+		h.logger.Error("failed to list roles", "id", s.ID(), "uid", uid, "error", err)
+		return &api.GetRolesResponse{Code: uint32(api.ErrorCode_ERR_INTERNAL)}, nil
+	}
+
+	h.logger.Info("roles listed",
+		"id", s.ID(),
+		"uid", uid,
+		"count", len(roles),
+	)
+
+	return &api.GetRolesResponse{
+		Code:  uint32(api.ErrorCode_ERR_SUCCESS),
+		Roles: roles,
 	}, nil
 }
 

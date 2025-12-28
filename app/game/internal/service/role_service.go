@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/lk2023060901/xdooria/app/game/internal/dao"
@@ -165,4 +166,92 @@ func (s *RoleService) UpdateRoleData(roleID int64, updateFunc func(*model.Role))
 	}
 
 	return nil
+}
+
+// ListRolesByUID 根据 UID 查询所有角色
+func (s *RoleService) ListRolesByUID(ctx context.Context, uid int64) ([]*model.Role, error) {
+	roles, err := s.roleDAO.ListByUID(ctx, uid)
+	if err != nil {
+		s.logger.Error("failed to list roles by uid",
+			"uid", uid,
+			"error", err,
+		)
+		return nil, fmt.Errorf("failed to list roles by uid: %w", err)
+	}
+
+	s.logger.Debug("listed roles by uid",
+		"uid", uid,
+		"count", len(roles),
+	)
+
+	return roles, nil
+}
+
+// CreateRole 创建角色
+func (s *RoleService) CreateRole(ctx context.Context, uid int64, nickname string, gender int32, appearance string) (*model.Role, error) {
+	// 检查昵称是否已存在
+	exists, err := s.roleDAO.CheckNicknameExists(ctx, nickname)
+	if err != nil {
+		s.logger.Error("failed to check nickname exists",
+			"nickname", nickname,
+			"error", err,
+		)
+		return nil, fmt.Errorf("failed to check nickname: %w", err)
+	}
+
+	if exists {
+		s.logger.Warn("nickname already exists", "nickname", nickname)
+		return nil, fmt.Errorf("nickname already exists")
+	}
+
+	// 检查该用户的角色数量
+	roles, err := s.roleDAO.ListByUID(ctx, uid)
+	if err != nil {
+		s.logger.Error("failed to list roles for count check",
+			"uid", uid,
+			"error", err,
+		)
+		return nil, fmt.Errorf("failed to list roles: %w", err)
+	}
+
+	if len(roles) >= 3 {
+		s.logger.Warn("role limit exceeded",
+			"uid", uid,
+			"count", len(roles),
+		)
+		return nil, fmt.Errorf("role limit exceeded")
+	}
+
+	// 创建角色
+	role := model.NewRole(uid, nickname, int16(gender), json.RawMessage(appearance))
+	if err := s.roleDAO.Create(ctx, role); err != nil {
+		s.logger.Error("failed to create role",
+			"uid", uid,
+			"nickname", nickname,
+			"error", err,
+		)
+		return nil, fmt.Errorf("failed to create role: %w", err)
+	}
+
+	s.logger.Info("role created",
+		"uid", uid,
+		"role_id", role.ID,
+		"nickname", nickname,
+	)
+
+	return role, nil
+}
+
+// CheckNicknameExists 检查昵称是否已存在
+func (s *RoleService) CheckNicknameExists(ctx context.Context, nickname string) (bool, error) {
+	exists, err := s.roleDAO.CheckNicknameExists(ctx, nickname)
+	if err != nil {
+		s.logger.Error("failed to check nickname exists",
+			"nickname", nickname,
+			"error", err,
+		)
+		return false, fmt.Errorf("failed to check nickname: %w", err)
+	}
+
+	return exists, nil
 }
