@@ -15,13 +15,13 @@ gameconfig:
   optional_tables: []
 
 database:
-  master:
+  standalone:
     host: localhost
     port: 5432
     user: xdooria
     password: xdooria123
     db_name: xdooria_game
-    sslmode: disable
+    ssl_mode: disable
   pool:
     max_conns: 100
     min_conns: 10
@@ -41,7 +41,7 @@ redis:
     conn_max_idle_time: 30m
 
 grpc:
-  addr: :50052
+  address: ":50052"
   max_recv_msg_size: 4194304
   max_send_msg_size: 4194304
 

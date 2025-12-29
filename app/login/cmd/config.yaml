@@ -11,10 +11,14 @@ gameconfig:
     - tbitem
     - tbshopitem
 
-server:
-  name: login-server
-  address: :50051
+tcp:
+  addr: "0.0.0.0:50051"
   network: tcp
+  multicore: true
+
+session:
+  send_channel_size: 1024
+  recv_channel_size: 1024
 
 jwt:
   secret_key: "xdooria-secret-key-123456"
