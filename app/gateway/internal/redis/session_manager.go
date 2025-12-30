@@ -82,7 +82,7 @@ func (m *SessionManager) RegisterRoleSession(ctx context.Context, session *RoleS
 		return false, fmt.Errorf("marshal session failed: %w", err)
 	}
 
-	result, err := m.client.Eval(ctx, script, nil,
+	cmd := m.client.Eval(ctx, script, nil,
 		session.ZoneID,
 		session.RoleID,
 		session.UID,
@@ -90,11 +90,11 @@ func (m *SessionManager) RegisterRoleSession(ctx context.Context, session *RoleS
 		session.SessionID,
 		session.Timestamp,
 	)
-	if err != nil {
+	if err := cmd.Err(); err != nil {
 		return false, fmt.Errorf("redis eval failed: %w", err)
 	}
 
-	resultSlice, ok := result.([]interface{})
+	resultSlice, ok := cmd.Val().([]interface{})
 	if !ok || len(resultSlice) < 2 {
 		return false, fmt.Errorf("invalid lua script result")
 	}
@@ -153,8 +153,8 @@ func (m *SessionManager) UnregisterRoleSession(ctx context.Context, zoneID int32
 		return 1
 	`
 
-	_, err := m.client.Eval(ctx, script, nil, zoneID, roleID, uid)
-	if err != nil {
+	cmd := m.client.Eval(ctx, script, nil, zoneID, roleID, uid)
+	if err := cmd.Err(); err != nil {
 		return fmt.Errorf("redis eval failed: %w", err)
 	}
 
@@ -187,7 +187,7 @@ func (m *SessionManager) GetRoleSession(ctx context.Context, zoneID int32, roleI
 }
 
 // RefreshSession 刷新会话 TTL
-func (m *SessionManager) RefreshSession(ctx context.Context, zoneID int32, roleID int64) error {
+func (m *SessionManager) RefreshSession(ctx context.Context, zoneID int32, roleID int64) (bool, error) {
 	key := fmt.Sprintf("role:%d:%d:session", zoneID, roleID)
 	return m.client.Expire(ctx, key, 3600*time.Second)
 }
@@ -206,7 +206,8 @@ func (m *SessionManager) PublishKickCommand(ctx context.Context, roleID int64, r
 		return fmt.Errorf("marshal kick payload failed: %w", err)
 	}
 
-	if err := m.client.Publish(ctx, channel, string(payloadJSON)); err != nil {
+	cmd := m.client.Publish(ctx, channel, string(payloadJSON))
+	if err := cmd.Err(); err != nil {
 		return fmt.Errorf("redis publish failed: %w", err)
 	}
 

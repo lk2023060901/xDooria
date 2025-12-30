@@ -69,7 +69,13 @@ func (c *CompleteQuest) Tick(ctx context.Context, bb *bt.Blackboard) bt.Status {
 
 	bb.Delete("current_quest")
 	bb.Delete("quest_status")
-	bb.Set("completed_quests", append(bb.Get("completed_quests").([]int), questID))
+
+	// 获取已完成任务列表
+	completedQuests := []int{}
+	if val, ok := bb.Get("completed_quests"); ok {
+		completedQuests = val.([]int)
+	}
+	bb.Set("completed_quests", append(completedQuests, questID))
 
 	return bt.StatusSuccess
 }

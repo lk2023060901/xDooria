@@ -64,11 +64,9 @@ func NewMoveRandom(robot *client.Robot, radius float32) *MoveRandom {
 func (m *MoveRandom) Tick(ctx context.Context, bb *bt.Blackboard) bt.Status {
 	// 获取当前位置
 	currentX, _ := bb.Get("position_x")
-	currentY, _ := bb.Get("position_y")
 	currentZ, _ := bb.Get("position_z")
 
 	x := currentX.(float32)
-	y := currentY.(float32)
 	z := currentZ.(float32)
 
 	// 生成随机偏移

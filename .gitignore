@@ -43,3 +43,11 @@ bin/
 logs/
 **/logs/
 login-svc
+
+# Service binaries
+**/cmd/*-server
+**/cmd/*-svc
+gateway-server
+game-server
+portal-server
+robot

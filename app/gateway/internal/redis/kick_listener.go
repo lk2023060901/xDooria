@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	goredis "github.com/redis/go-redis/v9"
+
 	common "github.com/lk2023060901/xdooria-proto-common"
 	gwsession "github.com/lk2023060901/xdooria/app/gateway/internal/session"
 	"github.com/lk2023060901/xdooria/pkg/database/redis"
@@ -46,10 +48,7 @@ func (kl *KickListener) Start() error {
 	// 订阅所有角色的踢人频道（使用模式匹配）
 	pattern := "kick:role:*"
 
-	pubsub, err := kl.client.PSubscribe(kl.ctx, pattern)
-	if err != nil {
-		return fmt.Errorf("redis psubscribe failed: %w", err)
-	}
+	pubsub := kl.client.PSubscribe(kl.ctx, pattern)
 
 	kl.logger.Info("kick listener started", "pattern", pattern)
 
@@ -76,7 +75,7 @@ func (kl *KickListener) Stop() error {
 }
 
 // messageLoop 消息处理循环
-func (kl *KickListener) messageLoop(pubsub redis.PubSub) error {
+func (kl *KickListener) messageLoop(pubsub *goredis.PubSub) error {
 	msgChan := pubsub.Channel()
 
 	for {
@@ -131,27 +130,26 @@ func (kl *KickListener) handleKickMessage(payload string) error {
 		Payload: []byte(kickMsg.Message),
 	}
 
-	baseSess := gwSess.BaseSession()
-	if err := baseSess.Send(kl.ctx, kickNotice); err != nil {
+	if err := gwSess.Send(kl.ctx, kickNotice); err != nil {
 		kl.logger.Warn("send kick notice failed",
 			"role_id", kickMsg.RoleID,
-			"session_id", baseSess.ID(),
+			"session_id", gwSess.ID(),
 			"error", err,
 		)
 	}
 
 	// 关闭会话
-	if err := baseSess.Close(); err != nil {
+	if err := gwSess.Close(); err != nil {
 		kl.logger.Warn("close session failed",
 			"role_id", kickMsg.RoleID,
-			"session_id", baseSess.ID(),
+			"session_id", gwSess.ID(),
 			"error", err,
 		)
 	}
 
 	kl.logger.Info("kicked role",
 		"role_id", kickMsg.RoleID,
-		"session_id", baseSess.ID(),
+		"session_id", gwSess.ID(),
 		"reason", kickMsg.Reason,
 	)
 

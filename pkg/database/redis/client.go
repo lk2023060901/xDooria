@@ -53,6 +53,8 @@ type redisClient interface {
 	Eval(ctx context.Context, script string, keys []string, args ...interface{}) *redis.Cmd
 	EvalSha(ctx context.Context, sha1 string, keys []string, args ...interface{}) *redis.Cmd
 	ScriptLoad(ctx context.Context, script string) *redis.StringCmd
+	Publish(ctx context.Context, channel string, message interface{}) *redis.IntCmd
+	PSubscribe(ctx context.Context, patterns ...string) *redis.PubSub
 	Pipeline() redis.Pipeliner
 	Pipelined(ctx context.Context, fn func(redis.Pipeliner) error) ([]redis.Cmder, error)
 	PoolStats() *redis.PoolStats
@@ -240,4 +242,23 @@ func (c *Client) Close() error {
 	}
 
 	return nil
+}
+
+// ===== Pub/Sub =====
+
+// Publish 发布消息到频道
+func (c *Client) Publish(ctx context.Context, channel string, message interface{}) *redis.IntCmd {
+	return c.getMaster().Publish(ctx, channel, message)
+}
+
+// PSubscribe 订阅模式匹配的频道
+func (c *Client) PSubscribe(ctx context.Context, patterns ...string) *redis.PubSub {
+	return c.getMaster().PSubscribe(ctx, patterns...)
+}
+
+// ===== Lua Scripts =====
+
+// Eval 执行 Lua 脚本
+func (c *Client) Eval(ctx context.Context, script string, keys []string, args ...interface{}) *redis.Cmd {
+	return c.getMaster().Eval(ctx, script, keys, args...)
 }

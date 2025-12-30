@@ -359,14 +359,13 @@ func (sc *StreamConnector) handleSendToClient(payload []byte) {
 		Payload: req.Payload,
 	}
 
-	baseSess := gwSess.BaseSession()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := baseSess.Send(ctx, env); err != nil {
+	if err := gwSess.Send(ctx, env); err != nil {
 		sc.logger.Warn("send to client failed",
 			"role_id", req.RoleId,
-			"session_id", baseSess.ID(),
+			"session_id", gwSess.ID(),
 			"op", req.Op,
 			"error", err,
 		)
@@ -405,11 +404,10 @@ func (sc *StreamConnector) handleBroadcast(payload []byte) {
 			continue
 		}
 
-		baseSess := gwSess.BaseSession()
-		if err := baseSess.Send(ctx, env); err != nil {
+		if err := gwSess.Send(ctx, env); err != nil {
 			sc.logger.Warn("broadcast to client failed",
 				"role_id", roleID,
-				"session_id", baseSess.ID(),
+				"session_id", gwSess.ID(),
 				"op", req.Op,
 				"error", err,
 			)
@@ -448,30 +446,29 @@ func (sc *StreamConnector) handleKickClient(payload []byte) {
 		Payload: []byte(req.Message),
 	}
 
-	baseSess := gwSess.BaseSession()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := baseSess.Send(ctx, kickEnv); err != nil {
+	if err := gwSess.Send(ctx, kickEnv); err != nil {
 		sc.logger.Warn("send kick notice failed",
 			"role_id", req.RoleId,
-			"session_id", baseSess.ID(),
+			"session_id", gwSess.ID(),
 			"error", err,
 		)
 	}
 
 	// 关闭会话
-	if err := baseSess.Close(); err != nil {
+	if err := gwSess.Close(); err != nil {
 		sc.logger.Warn("close session failed",
 			"role_id", req.RoleId,
-			"session_id", baseSess.ID(),
+			"session_id", gwSess.ID(),
 			"error", err,
 		)
 	}
 
 	sc.logger.Info("kicked client",
 		"role_id", req.RoleId,
-		"session_id", baseSess.ID(),
+		"session_id", gwSess.ID(),
 		"reason", req.Reason,
 	)
 }
