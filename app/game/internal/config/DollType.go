@@ -10,24 +10,24 @@
 package config;
 
 /**
- * 道具大类
+ * 玩偶类型
  */
 const (
     /**
-     * 装扮
+     * 动物
      */
-    ItemType_Costume = 1;
+    DollType_Animal = 1;
     /**
-     * 道具
+     * 人物
      */
-    ItemType_Item = 2;
+    DollType_Human = 2;
     /**
-     * 装备
+     * 植物
      */
-    ItemType_Equipment = 3;
+    DollType_Plant = 3;
     /**
-     * 玩偶
+     * 物品
      */
-    ItemType_Doll = 4;
+    DollType_Object = 4;
 )
 

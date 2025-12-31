@@ -17,11 +17,13 @@ const (
 	roleKeyPrefix    = "cache:role:"
 	sessionKeyPrefix = "session:player:"
 	onlineKeyPrefix  = "online:player:"
+	dollsKeyPrefix   = "cache:dolls:"
 
 	// TTL
 	roleCacheTTL    = 30 * time.Minute
 	sessionTTL      = 1 * time.Hour
 	onlineStatusTTL = 60 * time.Second
+	dollsCacheTTL   = 30 * time.Minute
 )
 
 // CacheDAO 缓存数据访问对象
@@ -243,6 +245,86 @@ func (d *CacheDAO) DeleteOnlineStatus(ctx context.Context, roleID int64) error {
 
 	d.logger.Debug("deleted online status",
 		"role_id", roleID,
+		"deleted_count", deleted,
+	)
+
+	return nil
+}
+
+// GetDolls 从缓存获取玩偶列表
+func (d *CacheDAO) GetDolls(ctx context.Context, playerID int64) ([]*model.Doll, error) {
+	key := fmt.Sprintf("%s%d", dollsKeyPrefix, playerID)
+
+	data, err := d.redis.Get(ctx, key)
+	if err != nil {
+		if err == redis.ErrNil {
+			d.metrics.RecordCacheMiss("redis")
+			return nil, nil
+		}
+		d.logger.Error("failed to get dolls from cache",
+			"player_id", playerID,
+			"error", err,
+		)
+		return nil, fmt.Errorf("failed to get dolls from cache: %w", err)
+	}
+
+	d.metrics.RecordCacheHit("redis")
+
+	var dolls []*model.Doll
+	if err := json.Unmarshal([]byte(data), &dolls); err != nil {
+		d.logger.Error("failed to unmarshal dolls",
+			"player_id", playerID,
+			"error", err,
+		)
+		return nil, fmt.Errorf("failed to unmarshal dolls: %w", err)
+	}
+
+	return dolls, nil
+}
+
+// SetDolls 设置玩偶列表缓存
+func (d *CacheDAO) SetDolls(ctx context.Context, playerID int64, dolls []*model.Doll, ttl time.Duration) error {
+	key := fmt.Sprintf("%s%d", dollsKeyPrefix, playerID)
+
+	data, err := json.Marshal(dolls)
+	if err != nil {
+		d.logger.Error("failed to marshal dolls",
+			"player_id", playerID,
+			"error", err,
+		)
+		return fmt.Errorf("failed to marshal dolls: %w", err)
+	}
+
+	if ttl == 0 {
+		ttl = dollsCacheTTL
+	}
+
+	if err := d.redis.Set(ctx, key, string(data), ttl); err != nil {
+		d.logger.Error("failed to set dolls cache",
+			"player_id", playerID,
+			"error", err,
+		)
+		return fmt.Errorf("failed to set dolls cache: %w", err)
+	}
+
+	return nil
+}
+
+// DeleteDolls 删除玩偶列表缓存
+func (d *CacheDAO) DeleteDolls(ctx context.Context, playerID int64) error {
+	key := fmt.Sprintf("%s%d", dollsKeyPrefix, playerID)
+
+	deleted, err := d.redis.Del(ctx, key)
+	if err != nil {
+		d.logger.Error("failed to delete dolls cache",
+			"player_id", playerID,
+			"error", err,
+		)
+		return fmt.Errorf("failed to delete dolls cache: %w", err)
+	}
+
+	d.logger.Debug("deleted dolls cache",
+		"player_id", playerID,
 		"deleted_count", deleted,
 	)
 

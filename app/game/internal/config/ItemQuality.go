@@ -10,24 +10,28 @@
 package config;
 
 /**
- * 道具大类
+ * 道具品质
  */
 const (
     /**
-     * 装扮
+     * 白色
      */
-    ItemType_Costume = 1;
+    ItemQuality_White = 1;
     /**
-     * 道具
+     * 绿色
      */
-    ItemType_Item = 2;
+    ItemQuality_Green = 2;
     /**
-     * 装备
+     * 蓝色
      */
-    ItemType_Equipment = 3;
+    ItemQuality_Blue = 3;
     /**
-     * 玩偶
+     * 紫色
      */
-    ItemType_Doll = 4;
+    ItemQuality_Purple = 4;
+    /**
+     * 橙色
+     */
+    ItemQuality_Orange = 5;
 )
 

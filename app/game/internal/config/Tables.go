@@ -16,6 +16,12 @@ type Tables struct {
     TbItem *TbItem
     TbShopItem *TbShopItem
     TbAccount *TbAccount
+    TbDoll *TbDoll
+    TbDrop *TbDrop
+    TbDropGroup *TbDropGroup
+    TbDropItem *TbDropItem
+    TbGacha *TbGacha
+    TbGachaPity *TbGachaPity
 }
 
 func NewTables(loader JsonLoader) (*Tables, error) {
@@ -45,6 +51,42 @@ func NewTables(loader JsonLoader) (*Tables, error) {
         return nil, err
     }
     if tables.TbAccount, err = NewTbAccount(buf) ; err != nil {
+        return nil, err
+    }
+    if buf, err = loader("tbdoll") ; err != nil {
+        return nil, err
+    }
+    if tables.TbDoll, err = NewTbDoll(buf) ; err != nil {
+        return nil, err
+    }
+    if buf, err = loader("tbdrop") ; err != nil {
+        return nil, err
+    }
+    if tables.TbDrop, err = NewTbDrop(buf) ; err != nil {
+        return nil, err
+    }
+    if buf, err = loader("tbdropgroup") ; err != nil {
+        return nil, err
+    }
+    if tables.TbDropGroup, err = NewTbDropGroup(buf) ; err != nil {
+        return nil, err
+    }
+    if buf, err = loader("tbdropitem") ; err != nil {
+        return nil, err
+    }
+    if tables.TbDropItem, err = NewTbDropItem(buf) ; err != nil {
+        return nil, err
+    }
+    if buf, err = loader("tbgacha") ; err != nil {
+        return nil, err
+    }
+    if tables.TbGacha, err = NewTbGacha(buf) ; err != nil {
+        return nil, err
+    }
+    if buf, err = loader("tbgachapity") ; err != nil {
+        return nil, err
+    }
+    if tables.TbGachaPity, err = NewTbGachaPity(buf) ; err != nil {
         return nil, err
     }
     return tables, nil

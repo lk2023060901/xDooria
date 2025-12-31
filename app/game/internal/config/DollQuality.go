@@ -10,24 +10,24 @@
 package config;
 
 /**
- * 道具大类
+ * 玩偶品质
  */
 const (
     /**
-     * 装扮
+     * 高级
      */
-    ItemType_Costume = 1;
+    DollQuality_Advanced = 1;
     /**
-     * 道具
+     * 稀有
      */
-    ItemType_Item = 2;
+    DollQuality_Rare = 2;
     /**
-     * 装备
+     * 史诗
      */
-    ItemType_Equipment = 3;
+    DollQuality_Epic = 3;
     /**
-     * 玩偶
+     * 隐藏
      */
-    ItemType_Doll = 4;
+    DollQuality_Hidden = 4;
 )
 

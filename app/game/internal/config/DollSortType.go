@@ -10,24 +10,20 @@
 package config;
 
 /**
- * 道具大类
+ * 玩偶排序类型
  */
 const (
     /**
-     * 装扮
+     * 收藏优先
      */
-    ItemType_Costume = 1;
+    DollSortType_Favorite = 1;
     /**
-     * 道具
+     * 品质排序
      */
-    ItemType_Item = 2;
+    DollSortType_Quality = 2;
     /**
-     * 装备
+     * 获得时间排序
      */
-    ItemType_Equipment = 3;
-    /**
-     * 玩偶
-     */
-    ItemType_Doll = 4;
+    DollSortType_CreateTime = 3;
 )
 

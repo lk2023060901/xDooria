@@ -10,24 +10,20 @@
 package config;
 
 /**
- * 道具大类
+ * 抽卡类型
  */
 const (
     /**
-     * 装扮
+     * 常驻池
      */
-    ItemType_Costume = 1;
+    GachaType_Permanent = 1;
     /**
-     * 道具
+     * UP池
      */
-    ItemType_Item = 2;
+    GachaType_UP = 2;
     /**
-     * 装备
+     * 限定池
      */
-    ItemType_Equipment = 3;
-    /**
-     * 玩偶
-     */
-    ItemType_Doll = 4;
+    GachaType_Limited = 3;
 )
 

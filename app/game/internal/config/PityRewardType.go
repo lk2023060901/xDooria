@@ -10,24 +10,20 @@
 package config;
 
 /**
- * 道具大类
+ * 保底奖励类型
  */
 const (
     /**
-     * 装扮
+     * 无额外奖励
      */
-    ItemType_Costume = 1;
+    PityRewardType_None = 0;
     /**
-     * 道具
+     * 具体道具
      */
-    ItemType_Item = 2;
+    PityRewardType_Item = 1;
     /**
-     * 装备
+     * 掉落包
      */
-    ItemType_Equipment = 3;
-    /**
-     * 玩偶
-     */
-    ItemType_Doll = 4;
+    PityRewardType_Drop = 2;
 )
 

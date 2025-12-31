@@ -10,24 +10,11 @@
 package config;
 
 /**
- * 道具大类
+ * 掉落类型
  */
 const (
-    /**
-     * 装扮
-     */
-    ItemType_Costume = 1;
-    /**
-     * 道具
-     */
-    ItemType_Item = 2;
-    /**
-     * 装备
-     */
-    ItemType_Equipment = 3;
-    /**
-     * 玩偶
-     */
-    ItemType_Doll = 4;
+    DropType_FIXED = 1;
+    DropType_WEIGHT = 2;
+    DropType_PROBABILITY = 3;
 )
 

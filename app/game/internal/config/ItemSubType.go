@@ -81,5 +81,9 @@ const (
      * 鞋子
      */
     ItemSubType_EquipBoots = 17;
+    ItemSubType_DollAnimal = 18;
+    ItemSubType_DollHuman = 19;
+    ItemSubType_DollPlant = 20;
+    ItemSubType_DollObject = 21;
 )
 
