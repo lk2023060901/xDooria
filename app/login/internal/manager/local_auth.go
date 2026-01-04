@@ -5,19 +5,15 @@ import (
 	"fmt"
 
 	"github.com/lk2023060901/xdooria/component/auth"
-	"github.com/lk2023060901/xdooria/pkg/gameconfig"
+	"github.com/lk2023060901/xdooria/app/login/internal/gameconfig"
 	pb "github.com/lk2023060901/xdooria-proto-common"
 	"google.golang.org/protobuf/proto"
 )
 
-type LocalAuthenticator struct {
-	tables *cfg.Tables
-}
+type LocalAuthenticator struct{}
 
-func NewLocalAuthenticator(tables *cfg.Tables) *LocalAuthenticator {
-	return &LocalAuthenticator{
-		tables: tables,
-	}
+func NewLocalAuthenticator() *LocalAuthenticator {
+	return &LocalAuthenticator{}
 }
 
 func (a *LocalAuthenticator) Type() pb.LoginType {
@@ -31,9 +27,9 @@ func (a *LocalAuthenticator) Authenticate(ctx context.Context, cred []byte) (*au
 		return nil, fmt.Errorf("failed to unmarshal local credentials: %w", err)
 	}
 
-	// 2. 在配置表中查找账号
-	var foundAccount *cfg.Account
-	for _, acc := range a.tables.TbAccount.GetDataList() {
+	// 2. 在全局配置表中查找账号
+	var foundAccount *gameconfig.Account
+	for _, acc := range gameconfig.T.TbAccount.GetDataList() {
 		if acc.UserName == localCred.Username {
 			foundAccount = acc
 			break

@@ -136,13 +136,28 @@ func (h *GatewayHandler) OnMessage(s session.Session, env *common.Envelope) {
 		return
 	}
 
-	// 2. 通过 gRPC 转发到 Game 服务
-	roleID := gwSess.GetRoleID()
+	// 2. 启动并投递到串行处理器
+	// 确保处理器已启动（仅首次进入时启动）
+	gwSess.StartProcessor(s.Context(), func(e *common.Envelope) {
+		h.forwardToGame(gwSess, e)
+	})
+
+	// 3. 将任务推入队列（非阻塞，瞬间完成）
+	if !gwSess.PushTask(env) {
+		h.logger.Error("user task queue full, dropping message", "id", s.ID(), "op", op)
+	}
+}
+
+// forwardToGame 真正的阻塞转发逻辑，运行在玩家私有的协程中
+func (h *GatewayHandler) forwardToGame(s *gwsession.GatewaySession, env *common.Envelope) {
+	op := env.Header.Op
+	roleID := s.GetRoleID()
+
 	if h.gameClient != nil {
 		resp, err := h.gameClient.ForwardMessage(s.Context(), &gamepb.ForwardMessageRequest{
 			RoleId:  roleID,
 			OpCode:  op,
-			Payload: payload,
+			Payload: env.Payload,
 		})
 		if err != nil {
 			h.logger.Error("forward to game failed", "id", s.ID(), "op", op, "error", err)
@@ -164,15 +179,15 @@ func (h *GatewayHandler) OnMessage(s session.Session, env *common.Envelope) {
 		return
 	}
 
-	// 3. 没有 gameClient，使用 Processor（兼容旧代码）
+	// 没有 gameClient，使用 Processor（兼容旧代码）
 	ctx := router.WithRoleID(s.Context(), roleID)
-	respOp, respPayload, err = h.processor.Process(ctx, op, payload)
+	respOp, respPayload, err := h.processor.Process(ctx, op, env.Payload)
 	if err != nil {
 		h.logger.Error("process message failed", "id", s.ID(), "op", op, "error", err)
 		return
 	}
 
-	// 4. 发送响应
+	// 发送响应
 	respEnv := &common.Envelope{
 		Header:  &common.MessageHeader{Op: respOp},
 		Payload: respPayload,

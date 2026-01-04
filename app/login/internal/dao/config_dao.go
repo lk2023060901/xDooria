@@ -5,51 +5,35 @@ import (
 	"path/filepath"
 
 	"github.com/lk2023060901/xdooria/pkg/app"
-	"github.com/lk2023060901/xdooria/pkg/gameconfig"
+	"github.com/lk2023060901/xdooria/app/login/internal/gameconfig"
 )
 
 // GameConfigConfig 游戏配置表加载配置
 type GameConfigConfig struct {
-	RequiredTables []string
-	OptionalTables []string
+	DataDir string `mapstructure:"data_dir"`
 }
 
-// ConfigDAO 负责加载和提供 Luban 配置表
-type ConfigDAO struct {
-	Tables *cfg.Tables
-}
+// ConfigDAO 负责初始化全局配置表
+type ConfigDAO struct{}
 
 func NewConfigDAO(gameCfg *GameConfigConfig, a *app.BaseApp) (*ConfigDAO, error) {
-	// 1. 获取执行目录
-	execDir, err := app.GetExecDir()
-	if err != nil {
-		return nil, err
-	}
-
-	// 2. 确定 JSON 数据目录 (默认在 configs/data)
-	dataDir := filepath.Join(execDir, "configs", "data")
-
-	// 3. 获取应用主日志对象
+	// 1. 获取应用主日志对象
 	l := a.AppLogger()
 
-	// 4. 使用选择性加载器
-	loader, err := cfg.NewSelectiveFileJsonLoader(
-		dataDir,
-		gameCfg.RequiredTables,
-		gameCfg.OptionalTables,
-		l,
-	)
-	if err != nil {
-		return nil, err
+	// 2. 确定数据目录
+	dataDir := gameCfg.DataDir
+	if dataDir == "" {
+		execDir, err := app.GetExecDir()
+		if err != nil {
+			return nil, err
+		}
+		dataDir = filepath.Join(execDir, "configs", "data")
 	}
 
-	// 5. 加载配置表
-	tables, err := cfg.NewTables(loader)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load luban tables: %w", err)
+	// 3. 加载到全局变量 gameconfig.T
+	if err := gameconfig.Load(dataDir, l); err != nil {
+		return nil, fmt.Errorf("failed to load global gameconfig: %w", err)
 	}
 
-	return &ConfigDAO{
-		Tables: tables,
-	}, nil
+	return &ConfigDAO{}, nil
 }

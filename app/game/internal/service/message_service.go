@@ -38,13 +38,18 @@ func NewMessageService(
 		metrics:      m,
 	}
 
-	// 注册所有消息处理器
+	// 注册基础系统消息处理器
 	s.registerHandlers()
 
 	return s
 }
 
-// registerHandlers 注册所有游戏消息处理器
+// RoleRouter 返回消息路由器
+func (s *MessageService) RoleRouter() *gamerouter.RoleRouter {
+	return s.roleRouter
+}
+
+// registerHandlers 注册基础游戏消息处理器
 func (s *MessageService) registerHandlers() {
 	// 场景相关
 	gamerouter.RegisterHandler(s.roleRouter,

@@ -6,7 +6,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/lk2023060901/xdooria/app/game/internal/config"
+	"github.com/lk2023060901/xdooria/app/game/internal/gameconfig"
 )
 
 // BaseBag 通用背包实现
@@ -399,7 +399,7 @@ func (b *BaseBag) CanStack(itemA, itemB *Item) bool {
 	}
 
 	// 装扮背包不可堆叠
-	if b.bagType == config.BagType_Costume {
+	if b.bagType == gameconfig.BagType_Costume {
 		return false
 	}
 
@@ -593,15 +593,13 @@ func (b *BaseBag) Expand(addCapacity int32) error {
 // canStackByBagType 根据背包类型判断是否可堆叠
 func (b *BaseBag) canStackByBagType() bool {
 	// 装扮背包不可堆叠
-	return b.bagType != config.BagType_Costume
+	return b.bagType != gameconfig.BagType_Costume
 }
 
 // getItemConfig 从配置表获取物品配置
 // TODO: 需要注入全局配置表实例
-func getItemConfig(configID int32) *config.Item {
-	// TODO: 实现配置表加载后，使用类似以下代码：
-	// return config.Tables.TbItem.Get(configID)
-	return nil
+func getItemConfig(configID int32) *gameconfig.Item {
+	return gameconfig.T.TbItem.Get(configID)
 }
 
 // getMaxStack 获取物品的最大堆叠数量
@@ -630,13 +628,13 @@ func getSortComparator(sortType int32, ascending bool) (ItemComparator, error) {
 	var baseComparator ItemComparator
 
 	switch sortType {
-	case config.BagSortType_Type:
+	case gameconfig.BagSortType_Type:
 		baseComparator = makeSortByType(ascending)
-	case config.BagSortType_Quality:
+	case gameconfig.BagSortType_Quality:
 		baseComparator = makeSortByQuality(ascending)
-	case config.BagSortType_Id:
+	case gameconfig.BagSortType_Id:
 		baseComparator = makeSortById(ascending)
-	case config.BagSortType_ExpireTime:
+	case gameconfig.BagSortType_ExpireTime:
 		baseComparator = makeSortByExpireTime(ascending)
 	default:
 		return nil, fmt.Errorf("invalid sort type: %d", sortType)
@@ -681,7 +679,7 @@ func makeSortByType(ascending bool) ItemComparator {
 			return cfgA.SubType > cfgB.SubType
 		}
 		// 子类相同，按配置的排序字段
-		return cfgA.SortOrder < cfgB.SortOrder
+		return cfgA.Id < cfgB.Id
 	}
 }
 
@@ -702,7 +700,7 @@ func makeSortByQuality(ascending bool) ItemComparator {
 			return cfgA.Quality > cfgB.Quality
 		}
 		// 品质相同，按配置的排序字段
-		return cfgA.SortOrder < cfgB.SortOrder
+		return cfgA.Id < cfgB.Id
 	}
 }
 

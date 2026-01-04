@@ -12,15 +12,10 @@ CREATE TABLE IF NOT EXISTS roles (
     appearance      JSONB NOT NULL DEFAULT '{}',        -- 角色外观配置（脸型、发型、肤色等）
     outfit          JSONB NOT NULL DEFAULT '{}',        -- 当前穿戴装扮（衣服、裤子、鞋子、配饰等）
 
-    -- 经济系统
-    gold            BIGINT NOT NULL DEFAULT 0,          -- 金币（普通货币）
-    diamond         BIGINT NOT NULL DEFAULT 0,          -- 钻石（付费货币）
-
     -- 等级成长
     level           INT NOT NULL DEFAULT 1,             -- 角色等级
     exp             BIGINT NOT NULL DEFAULT 0,          -- 当前经验值
-    vip_level       SMALLINT NOT NULL DEFAULT 0,        -- VIP等级
-    vip_exp         INT NOT NULL DEFAULT 0,             -- VIP经验
+    vip_exp         BIGINT NOT NULL DEFAULT 0,          -- 总经验值（用于计算VIP等级）
 
     -- 封禁状态（冗余字段，快速判断）
     status          SMALLINT NOT NULL DEFAULT 0,        -- 状态: 0正常 1封禁
@@ -63,12 +58,9 @@ COMMENT ON COLUMN roles.signature IS '个性签名';
 COMMENT ON COLUMN roles.avatar_url IS '头像URL';
 COMMENT ON COLUMN roles.appearance IS '角色外观配置（脸型、发型、肤色等）';
 COMMENT ON COLUMN roles.outfit IS '当前穿戴装扮（衣服、裤子、鞋子、配饰等）';
-COMMENT ON COLUMN roles.gold IS '金币（普通货币）';
-COMMENT ON COLUMN roles.diamond IS '钻石（付费货币）';
 COMMENT ON COLUMN roles.level IS '角色等级';
 COMMENT ON COLUMN roles.exp IS '当前经验值';
-COMMENT ON COLUMN roles.vip_level IS 'VIP等级';
-COMMENT ON COLUMN roles.vip_exp IS 'VIP经验';
+COMMENT ON COLUMN roles.vip_exp IS '总经验值（用于计算VIP等级）';
 COMMENT ON COLUMN roles.status IS '状态: 0正常 1封禁';
 COMMENT ON COLUMN roles.ban_expire_at IS '封禁到期时间，NULL表示永久封禁';
 COMMENT ON COLUMN roles.last_login_at IS '最后登录时间';

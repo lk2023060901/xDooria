@@ -1,0 +1,106 @@
+[
+  {
+    "id": 40001,
+    "series": 1,
+    "max_quality": 2,
+    "is_limited": false,
+    "can_exchange_real": false,
+    "real_exchange_cost": ""
+  },
+  {
+    "id": 40002,
+    "series": 1,
+    "max_quality": 2,
+    "is_limited": false,
+    "can_exchange_real": false,
+    "real_exchange_cost": ""
+  },
+  {
+    "id": 40003,
+    "series": 1,
+    "max_quality": 2,
+    "is_limited": false,
+    "can_exchange_real": false,
+    "real_exchange_cost": ""
+  },
+  {
+    "id": 40101,
+    "series": 1,
+    "max_quality": 3,
+    "is_limited": false,
+    "can_exchange_real": true,
+    "real_exchange_cost": "20002,100"
+  },
+  {
+    "id": 40102,
+    "series": 1,
+    "max_quality": 3,
+    "is_limited": false,
+    "can_exchange_real": true,
+    "real_exchange_cost": "20002,100"
+  },
+  {
+    "id": 40201,
+    "series": 1,
+    "max_quality": 4,
+    "is_limited": false,
+    "can_exchange_real": true,
+    "real_exchange_cost": "20002,200"
+  },
+  {
+    "id": 40301,
+    "series": 1,
+    "max_quality": 5,
+    "is_limited": true,
+    "can_exchange_real": true,
+    "real_exchange_cost": "20002,500"
+  },
+  {
+    "id": 40004,
+    "series": 2,
+    "max_quality": 2,
+    "is_limited": false,
+    "can_exchange_real": false,
+    "real_exchange_cost": ""
+  },
+  {
+    "id": 40005,
+    "series": 2,
+    "max_quality": 2,
+    "is_limited": false,
+    "can_exchange_real": false,
+    "real_exchange_cost": ""
+  },
+  {
+    "id": 40103,
+    "series": 2,
+    "max_quality": 3,
+    "is_limited": false,
+    "can_exchange_real": true,
+    "real_exchange_cost": "20002,100"
+  },
+  {
+    "id": 40202,
+    "series": 2,
+    "max_quality": 4,
+    "is_limited": false,
+    "can_exchange_real": true,
+    "real_exchange_cost": "20002,200"
+  },
+  {
+    "id": 40006,
+    "series": 3,
+    "max_quality": 2,
+    "is_limited": false,
+    "can_exchange_real": false,
+    "real_exchange_cost": ""
+  },
+  {
+    "id": 40104,
+    "series": 3,
+    "max_quality": 3,
+    "is_limited": false,
+    "can_exchange_real": true,
+    "real_exchange_cost": "20002,100"
+  }
+]

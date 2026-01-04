@@ -1,0 +1,56 @@
+[
+  {
+    "id": 1,
+    "drop_id": 1,
+    "drop_type": 2,
+    "roll_count": 1
+  },
+  {
+    "id": 2,
+    "drop_id": 2,
+    "drop_type": 2,
+    "roll_count": 1
+  },
+  {
+    "id": 3,
+    "drop_id": 3,
+    "drop_type": 2,
+    "roll_count": 1
+  },
+  {
+    "id": 101,
+    "drop_id": 101,
+    "drop_type": 2,
+    "roll_count": 1
+  },
+  {
+    "id": 102,
+    "drop_id": 102,
+    "drop_type": 2,
+    "roll_count": 1
+  },
+  {
+    "id": 103,
+    "drop_id": 103,
+    "drop_type": 2,
+    "roll_count": 1
+  },
+  {
+    "id": 104,
+    "drop_id": 104,
+    "drop_type": 2,
+    "roll_count": 1
+  },
+  {
+    "id": 201,
+    "drop_id": 201,
+    "drop_type": 2,
+    "roll_count": 1
+  },
+  {
+    "id": 202,
+    "drop_id": 202,
+    "drop_type": 2,
+    "roll_count": 1
+  }
+]

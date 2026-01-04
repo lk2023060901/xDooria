@@ -57,7 +57,6 @@ func InitApp(cfg *Config, l logger.Logger) (app.Application, func(), error) {
 		// 9. 数据层 (Luban Config)
 		provideGameConfigConfig,
 		dao.NewConfigDAO,
-		wire.FieldsOf(new(*dao.ConfigDAO), "Tables"),
 
 		// 10. 逻辑层 (Authenticator)
 		manager.NewLocalAuthenticator,
@@ -113,8 +112,7 @@ func provideMetricsConfig(cfg *Config) *metrics.Config {
 // provideGameConfigConfig 提供游戏配置表加载配置
 func provideGameConfigConfig(cfg *Config) *dao.GameConfigConfig {
 	return &dao.GameConfigConfig{
-		RequiredTables: cfg.GameConfig.RequiredTables,
-		OptionalTables: cfg.GameConfig.OptionalTables,
+		DataDir: cfg.GameConfig.DataDir,
 	}
 }
 
@@ -173,6 +171,7 @@ func provideAppComponents(
 	reporter *metrics.Reporter,
 	registrar *etcd.Registrar,
 	resolver *etcd.Resolver,
+	_ *dao.ConfigDAO, // 确保 ConfigDAO 被初始化（从而触发 gameconfig.Load）
 	cfg *Config,
 	opts []app.Option,
 ) app.AppComponents {

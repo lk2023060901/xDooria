@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"time"
 
-	"github.com/lk2023060901/xdooria/app/game/internal/config"
+	"github.com/lk2023060901/xdooria/app/game/internal/gameconfig"
 	"github.com/lk2023060901/xdooria/app/game/internal/metrics"
 	"github.com/lk2023060901/xdooria/app/game/internal/model"
 	"github.com/lk2023060901/xdooria/app/game/internal/repository"
@@ -32,8 +33,36 @@ func NewDollService(
 	}
 }
 
+// AddDoll 为玩家添加一个玩偶
+func (s *DollService) AddDoll(ctx context.Context, roleID int64, dollConfigID int32) (*model.Doll, error) {
+	// 1. 获取配置
+	cfg := gameconfig.T.TbDoll.Get(dollConfigID)
+	if cfg == nil {
+		return nil, fmt.Errorf("doll config %d not found", dollConfigID)
+	}
+
+	// 2. 创建实例
+	doll := &model.Doll{
+		ID:         0, // 由数据库生成
+		PlayerID:   roleID,
+		DollID:     dollConfigID,
+		Quality:    int16(cfg.MaxQuality),
+		IsLocked:   false,
+		IsRedeemed: false,
+		CreatedAt:  time.Now(),
+	}
+
+	// 3. 存储
+	if err := s.playerRepo.AddDoll(ctx, doll); err != nil {
+		return nil, err
+	}
+
+	s.logger.Info("doll added to player", "role_id", roleID, "doll_id", dollConfigID)
+	return doll, nil
+}
+
 // GetDolls 获取玩偶列表（支持排序）
-// sortType: 使用 config.DollSortType_* 常量
+// sortType: 使用 gameconfig.DollSortType_* 常量
 func (s *DollService) GetDolls(ctx context.Context, playerID int64, sortType int32) ([]*model.Doll, error) {
 	// 1. 从 repository 获取玩偶列表
 	dolls, err := s.playerRepo.GetDolls(ctx, playerID)
@@ -175,7 +204,7 @@ func (s *DollService) RedeemRealDoll(ctx context.Context, playerID int64, dollID
 	}
 
 	// 3. 从配置表检查该玩偶是否可兑换实体
-	dollConfig := config.Tables.TbDoll.Get(doll.DollID)
+	dollConfig := gameconfig.T.TbDoll.Get(doll.DollID)
 	if dollConfig == nil {
 		s.logger.Error("doll config not found",
 			"player_id", playerID,
@@ -250,7 +279,7 @@ func (s *DollService) GetCollectionStats(ctx context.Context, playerID int64) (*
 		ownedDollTypes[doll.DollID] = true
 
 		// 从配置表获取玩偶所属系列
-		dollConfig := config.Tables.TbDoll.Get(doll.DollID)
+		dollConfig := gameconfig.T.TbDoll.Get(doll.DollID)
 		if dollConfig != nil {
 			seriesID := dollConfig.Series
 			if seriesOwned[seriesID] == nil {
@@ -261,7 +290,7 @@ func (s *DollService) GetCollectionStats(ctx context.Context, playerID int64) (*
 	}
 
 	// 3. 从配置表获取总玩偶种类数和系列信息
-	allDollConfigs := config.Tables.TbDoll.GetAll()
+	allDollConfigs := gameconfig.T.TbDoll.GetDataList()
 	totalDollTypes := len(allDollConfigs)
 	seriesTotal := make(map[int32]int32)
 	for _, dollConfig := range allDollConfigs {
@@ -293,10 +322,10 @@ func (s *DollService) GetCollectionStats(ctx context.Context, playerID int64) (*
 }
 
 // sortDolls 玩偶排序
-// sortType: 使用 config.DollSortType_* 常量
+// sortType: 使用 gameconfig.DollSortType_* 常量
 func (s *DollService) sortDolls(dolls []*model.Doll, sortType int32) {
 	switch sortType {
-	case config.DollSortType_Quality:
+	case gameconfig.DollSortType_Quality:
 		// 品质降序 -> 获得时间降序
 		sort.SliceStable(dolls, func(i, j int) bool {
 			if dolls[i].Quality != dolls[j].Quality {
@@ -305,13 +334,13 @@ func (s *DollService) sortDolls(dolls []*model.Doll, sortType int32) {
 			return dolls[i].CreatedAt.After(dolls[j].CreatedAt)
 		})
 
-	case config.DollSortType_CreateTime:
+	case gameconfig.DollSortType_CreateTime:
 		// 获得时间降序
 		sort.SliceStable(dolls, func(i, j int) bool {
 			return dolls[i].CreatedAt.After(dolls[j].CreatedAt)
 		})
 
-	case config.DollSortType_Favorite:
+	case gameconfig.DollSortType_Favorite:
 		// 收藏优先 -> 品质降序 -> 获得时间降序
 		sort.SliceStable(dolls, func(i, j int) bool {
 			// TODO: 需要在 model.Doll 中添加 IsFavorite 字段

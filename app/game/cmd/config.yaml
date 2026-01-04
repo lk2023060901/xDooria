@@ -11,8 +11,7 @@ session:
   disconnect_timeout: 60s
 
 gameconfig:
-  required_tables: []
-  optional_tables: []
+  data_dir: configs/data
 
 database:
   standalone:

@@ -4,12 +4,7 @@ log:
   enable_console: true
 
 gameconfig:
-  required_tables:
-    - tbaccount
-  optional_tables:
-    - tbglobalconfig
-    - tbitem
-    - tbshopitem
+  data_dir: configs/data
 
 tcp:
   addr: "0.0.0.0:50051"

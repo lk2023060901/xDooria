@@ -61,13 +61,7 @@ func InitApp(cfg *Config, l logger.Logger) (app.Application, func(), error) {
 	}
 	balancer := provideBalancer()
 	loginService := service.NewLoginService(authManager, jwtManager, loginMetrics, resolver, balancer)
-	gameConfigConfig := provideGameConfigConfig(cfg)
-	configDAO, err := dao.NewConfigDAO(gameConfigConfig, baseApp)
-	if err != nil {
-		return nil, nil, err
-	}
-	tables := configDAO.Tables
-	localAuthenticator := manager.NewLocalAuthenticator(tables)
+	localAuthenticator := manager.NewLocalAuthenticator()
 	prometheusConfig := providePrometheusConfig(cfg)
 	client, err := prometheus.New(prometheusConfig)
 	if err != nil {
@@ -81,7 +75,12 @@ func InitApp(cfg *Config, l logger.Logger) (app.Application, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	appComponents := provideAppComponents(baseApp, server, loginService, authManager, localAuthenticator, routerRouter, client, loginMetrics, reporter, registrar, resolver, cfg, v)
+	gameConfigConfig := provideGameConfigConfig(cfg)
+	configDAO, err := dao.NewConfigDAO(gameConfigConfig, baseApp)
+	if err != nil {
+		return nil, nil, err
+	}
+	appComponents := provideAppComponents(baseApp, server, loginService, authManager, localAuthenticator, routerRouter, client, loginMetrics, reporter, registrar, resolver, configDAO, cfg, v)
 	application := app.InitApp(baseApp, appComponents)
 	return application, func() {
 	}, nil
@@ -107,8 +106,7 @@ func provideMetricsConfig(cfg *Config) *metrics.Config {
 // provideGameConfigConfig 提供游戏配置表加载配置
 func provideGameConfigConfig(cfg *Config) *dao.GameConfigConfig {
 	return &dao.GameConfigConfig{
-		RequiredTables: cfg.GameConfig.RequiredTables,
-		OptionalTables: cfg.GameConfig.OptionalTables,
+		DataDir: cfg.GameConfig.DataDir,
 	}
 }
 
@@ -162,6 +160,7 @@ func provideAppComponents(
 	reporter *metrics.Reporter,
 	registrar *etcd.Registrar,
 	resolver *etcd.Resolver,
+	_ *dao.ConfigDAO,
 	cfg *Config,
 	opts []app.Option,
 ) app.AppComponents {

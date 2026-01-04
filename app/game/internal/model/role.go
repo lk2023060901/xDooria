@@ -20,15 +20,10 @@ type Role struct {
 	Appearance json.RawMessage `db:"appearance"`
 	Outfit     json.RawMessage `db:"outfit"`
 
-	// 经济系统
-	Gold    int64 `db:"gold"`
-	Diamond int64 `db:"diamond"`
-
 	// 等级成长
-	Level    int32 `db:"level"`
-	Exp      int64 `db:"exp"`
-	VIPLevel int16 `db:"vip_level"`
-	VIPExp   int32 `db:"vip_exp"`
+	Level  int32 `db:"level"`
+	Exp    int64 `db:"exp"`
+	VIPExp int64 `db:"vip_exp"` // 总经验值（用于计算VIP等级）
 
 	// 封禁状态
 	Status      int16          `db:"status"`
@@ -55,11 +50,8 @@ func NewRole(uid int64, nickname string, gender int16, appearance json.RawMessag
 		Gender:     gender,
 		Appearance: appearance,
 		Outfit:     json.RawMessage("{}"),
-		Gold:       0,
-		Diamond:    0,
 		Level:      1,
 		Exp:        0,
-		VIPLevel:   0,
 		VIPExp:     0,
 		Status:     RoleStatusNormal,
 		Signature:  "",

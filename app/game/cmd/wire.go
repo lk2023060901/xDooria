@@ -12,6 +12,7 @@ import (
 	"github.com/lk2023060901/xdooria/app/game/internal/handler"
 	"github.com/lk2023060901/xdooria/app/game/internal/manager"
 	"github.com/lk2023060901/xdooria/app/game/internal/metrics"
+	"github.com/lk2023060901/xdooria/app/game/internal/repository"
 	"github.com/lk2023060901/xdooria/app/game/internal/service"
 	"github.com/lk2023060901/xdooria/pkg/app"
 	"github.com/lk2023060901/xdooria/pkg/database/postgres"
@@ -39,7 +40,15 @@ func InitApp(cfg *Config, l logger.Logger) (app.Application, func(), error) {
 
 		// 4. 数据层 (DAO)
 		dao.NewRoleDAO,
+		dao.NewDollDAO,
+		dao.NewGachaDAO,
+		dao.NewBagDAO,
 		dao.NewCacheDAO,
+		provideGameConfigConfig,
+		dao.NewConfigDAO,
+
+		// 仓储层
+		repository.NewPlayerRepository,
 
 		// 5. 指标收集
 		provideMetricsConfig,
@@ -55,9 +64,17 @@ func InitApp(cfg *Config, l logger.Logger) (app.Application, func(), error) {
 		service.NewRoleService,
 		service.NewSceneService,
 		service.NewMessageService,
+		service.NewDollService,
+		service.NewDropService,
+		service.NewBagService,
+		service.NewGachaService,
+		service.NewSmeltService,
 
 		// 8. 接口层 (Handler)
 		handler.NewGameHandler,
+		handler.NewDollHandler,
+		handler.NewGachaHandler,
+		handler.NewSmeltHandler,
 
 		// 9. gRPC Server 配置和选项
 		provideGRPCServerConfig,
@@ -97,8 +114,7 @@ func provideRedisConfig(cfg *Config) *redis.Config {
 // provideGameConfigConfig 提供游戏配置表加载配置
 func provideGameConfigConfig(cfg *Config) *dao.GameConfigConfig {
 	return &dao.GameConfigConfig{
-		RequiredTables: cfg.GameConfig.RequiredTables,
-		OptionalTables: cfg.GameConfig.OptionalTables,
+		DataDir: cfg.GameConfig.DataDir,
 	}
 }
 
@@ -156,7 +172,11 @@ func provideAppOptions(cfg *Config, l logger.Logger) []app.Option {
 func provideAppComponents(
 	baseApp *app.BaseApp,
 	grpcServer *server.Server,
+	messageSvc *service.MessageService,
 	gameHandler *handler.GameHandler,
+	dollHandler *handler.DollHandler,
+	gachaHandler *handler.GachaHandler,
+	smeltHandler *handler.SmeltHandler,
 	promClient *prometheus.Client,
 	gameMetrics *metrics.GameMetrics,
 	reporter *metrics.Reporter,
@@ -164,11 +184,18 @@ func provideAppComponents(
 	resolver *etcd.Resolver,
 	postgresClient *postgres.Client,
 	redisClient *redis.Client,
+	_ *dao.ConfigDAO, // 确保 ConfigDAO 被初始化（从而触发 gameconfig.Load）
 	cfg *Config,
 	opts []app.Option,
 ) app.AppComponents {
 	// 注册 gRPC 服务
 	gamepb.RegisterGameServiceServer(grpcServer.GetGRPCServer(), gameHandler)
+
+	// 获取消息路由器并注册业务 Handler
+	router := messageSvc.RoleRouter()
+	dollHandler.RegisterHandlers(router)
+	gachaHandler.RegisterHandlers(router)
+	smeltHandler.RegisterHandlers(router)
 
 	// 注册 Game 指标到 Prometheus
 	_ = gameMetrics.Register(promClient.Registry())

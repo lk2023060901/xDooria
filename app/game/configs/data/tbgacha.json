@@ -1,0 +1,18 @@
+[
+  {
+    "id": 1,
+    "type": 1,
+    "name": "常驻盲盒",
+    "cost_item": 20001,
+    "cost_count": 1,
+    "drop_id": 1
+  },
+  {
+    "id": 2,
+    "type": 3,
+    "name": "动物系列限定",
+    "cost_item": 20002,
+    "cost_count": 1,
+    "drop_id": 101
+  }
+]

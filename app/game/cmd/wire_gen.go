@@ -13,6 +13,7 @@ import (
 	"github.com/lk2023060901/xdooria/app/game/internal/handler"
 	"github.com/lk2023060901/xdooria/app/game/internal/manager"
 	"github.com/lk2023060901/xdooria/app/game/internal/metrics"
+	"github.com/lk2023060901/xdooria/app/game/internal/repository"
 	"github.com/lk2023060901/xdooria/app/game/internal/service"
 	"github.com/lk2023060901/xdooria/pkg/app"
 	"github.com/lk2023060901/xdooria/pkg/database/postgres"
@@ -36,6 +37,7 @@ func InitApp(cfg *Config, l logger.Logger) (app.Application, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	router := provideRouter()
 	postgresConfig := providePostgresConfig(cfg)
 	client, err := postgres.New(postgresConfig)
 	if err != nil {
@@ -54,13 +56,24 @@ func InitApp(cfg *Config, l logger.Logger) (app.Application, func(), error) {
 	}
 	cacheDAO := dao.NewCacheDAO(redisClient, l, gameMetrics)
 	roleManager := manager.NewRoleManager(l, roleDAO, cacheDAO, gameMetrics)
-	sessionManager := manager.NewSessionManager(l, cacheDAO)
-	roleService := service.NewRoleService(l, roleManager, sessionManager, roleDAO, gameMetrics)
-	router := provideRouter()
 	sceneManager := manager.NewSceneManager(l)
 	sceneService := service.NewSceneService(l, roleManager, sceneManager, gameMetrics)
 	messageService := service.NewMessageService(l, router, roleManager, sceneService, gameMetrics)
+	sessionManager := manager.NewSessionManager(l, cacheDAO)
+	roleService := service.NewRoleService(l, roleManager, sessionManager, roleDAO, gameMetrics)
 	gameHandler := handler.NewGameHandler(l, roleService, messageService)
+	dollDAO := dao.NewDollDAO(client, l, gameMetrics)
+	gachaDAO := dao.NewGachaDAO(client, l, gameMetrics)
+	bagDAO := dao.NewBagDAO(client, l, gameMetrics)
+	playerRepository := repository.NewPlayerRepository(dollDAO, gachaDAO, bagDAO, cacheDAO, l)
+	dollService := service.NewDollService(l, playerRepository, gameMetrics)
+	dollHandler := handler.NewDollHandler(l, dollService)
+	dropService := service.NewDropService(l)
+	bagService := service.NewBagService(l, playerRepository)
+	gachaService := service.NewGachaService(l, playerRepository, dropService, dollService, bagService)
+	gachaHandler := handler.NewGachaHandler(l, gachaService)
+	smeltService := service.NewSmeltService(l, playerRepository, dropService, dollService, bagService)
+	smeltHandler := handler.NewSmeltHandler(l, smeltService)
 	prometheusConfig := providePrometheusConfig(cfg)
 	prometheusClient, err := prometheus.New(prometheusConfig)
 	if err != nil {
@@ -79,7 +92,12 @@ func InitApp(cfg *Config, l logger.Logger) (app.Application, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	appComponents := provideAppComponents(baseApp, serverServer, gameHandler, prometheusClient, gameMetrics, reporter, registrar, resolver, client, redisClient, cfg, v)
+	gameConfigConfig := provideGameConfigConfig(cfg)
+	configDAO, err := dao.NewConfigDAO(gameConfigConfig, baseApp)
+	if err != nil {
+		return nil, nil, err
+	}
+	appComponents := provideAppComponents(baseApp, serverServer, messageService, gameHandler, dollHandler, gachaHandler, smeltHandler, prometheusClient, gameMetrics, reporter, registrar, resolver, client, redisClient, configDAO, cfg, v)
 	application := app.InitApp(baseApp, appComponents)
 	return application, func() {
 	}, nil
@@ -100,8 +118,7 @@ func provideRedisConfig(cfg *Config) *redis.Config {
 // provideGameConfigConfig 提供游戏配置表加载配置
 func provideGameConfigConfig(cfg *Config) *dao.GameConfigConfig {
 	return &dao.GameConfigConfig{
-		RequiredTables: cfg.GameConfig.RequiredTables,
-		OptionalTables: cfg.GameConfig.OptionalTables,
+		DataDir: cfg.GameConfig.DataDir,
 	}
 }
 
@@ -154,7 +171,11 @@ func provideAppOptions(cfg *Config, l logger.Logger) []app.Option {
 func provideAppComponents(
 	baseApp *app.BaseApp,
 	grpcServer *server.Server,
+	messageSvc *service.MessageService,
 	gameHandler *handler.GameHandler,
+	dollHandler *handler.DollHandler,
+	gachaHandler *handler.GachaHandler,
+	smeltHandler *handler.SmeltHandler,
 	promClient *prometheus.Client,
 	gameMetrics *metrics.GameMetrics,
 	reporter *metrics.Reporter,
@@ -162,10 +183,15 @@ func provideAppComponents(
 	resolver *etcd.Resolver,
 	postgresClient *postgres.Client,
 	redisClient *redis.Client,
+	_ *dao.ConfigDAO,
 	cfg *Config,
 	opts []app.Option,
 ) app.AppComponents {
 	gamepb.RegisterGameServiceServer(grpcServer.GetGRPCServer(), gameHandler)
+	router2 := messageSvc.RoleRouter()
+	dollHandler.RegisterHandlers(router2)
+	gachaHandler.RegisterHandlers(router2)
+	smeltHandler.RegisterHandlers(router2)
 
 	_ = gameMetrics.Register(promClient.Registry())
 

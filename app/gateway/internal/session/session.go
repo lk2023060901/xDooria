@@ -1,12 +1,15 @@
 package session
 
 import (
+	"context"
 	"sync"
 
+	common "github.com/lk2023060901/xdooria-proto-common"
 	"github.com/lk2023060901/xdooria/pkg/network/session"
+	"github.com/lk2023060901/xdooria/pkg/util/conc"
 )
 
-// GatewaySession Gateway 特定的 Session，扩展 BaseSession 添加认证状态
+// GatewaySession Gateway 特定的 Session，扩展 BaseSession 添加认证状态和消息串行处理器
 type GatewaySession struct {
 	session.Session // 嵌入基础 Session
 
@@ -16,12 +19,53 @@ type GatewaySession struct {
 	roleID        int64 // 当前选择的角色 ID
 	authenticated bool  // 是否已认证
 	roleSelected  bool  // 是否已选择角色
+
+	// 消息串行处理
+	taskCh chan *common.Envelope // 玩家私有的待转发消息队列
+	cancel context.CancelFunc    // 停止处理循环
 }
 
 // NewGatewaySession 创建 Gateway Session
 func NewGatewaySession(base session.Session) *GatewaySession {
 	return &GatewaySession{
 		Session: base,
+		taskCh:  make(chan *common.Envelope, 1024),
+	}
+}
+
+// StartProcessor 启动该玩家的消息串行处理器
+func (s *GatewaySession) StartProcessor(ctx context.Context, handler func(*common.Envelope)) {
+	s.mu.Lock()
+	if s.cancel != nil {
+		s.mu.Unlock()
+		return
+	}
+	pCtx, cancel := context.WithCancel(ctx)
+	s.cancel = cancel
+	s.mu.Unlock()
+
+	// 使用项目封装的 conc.Go，确保安全性和风格统一
+	conc.Go(func() (struct{}, error) {
+		for {
+			select {
+			case env := <-s.taskCh:
+				handler(env)
+			case <-pCtx.Done():
+				return struct{}{}, nil
+			case <-s.Context().Done():
+				return struct{}{}, nil
+			}
+		}
+	})
+}
+
+// PushTask 投递一个待处理任务
+func (s *GatewaySession) PushTask(env *common.Envelope) bool {
+	select {
+	case s.taskCh <- env:
+		return true
+	default:
+		return false // 队列满，可能被恶意攻击或后端极慢
 	}
 }
 

@@ -2,9 +2,10 @@ package handler
 
 import (
 	"context"
+	"fmt"
 
 	api "github.com/lk2023060901/xdooria-proto-api"
-	"github.com/lk2023060901/xdooria/app/game/internal/config"
+	"github.com/lk2023060901/xdooria/app/game/internal/gameconfig"
 	gamerouter "github.com/lk2023060901/xdooria/app/game/internal/router"
 	"github.com/lk2023060901/xdooria/app/game/internal/service"
 	"github.com/lk2023060901/xdooria/pkg/logger"
@@ -61,7 +62,7 @@ func (h *DollHandler) HandleDollList(ctx context.Context, roleID int64, req *api
 	)
 
 	// 1. 从 service 获取玩偶列表（使用默认排序）
-	dolls, err := h.dollSvc.GetDolls(ctx, roleID, config.DollSortType_Quality)
+	dolls, err := h.dollSvc.GetDolls(ctx, roleID, gameconfig.DollSortType_Quality)
 	if err != nil {
 		h.logger.Error("failed to get dolls",
 			"role_id", roleID,
@@ -153,7 +154,7 @@ func (h *DollHandler) HandleDollLock(ctx context.Context, roleID int64, req *api
 		errCode := api.ErrorCode_ERR_INTERNAL
 		errMsg := err.Error()
 
-		if errMsg == "doll not found" || errMsg == "doll not found: player_id="+string(roleID)+", doll_id="+string(req.Id) {
+		if errMsg == "doll not found" || errMsg == fmt.Sprintf("doll not found: player_id=%d, doll_id=%d", roleID, req.Id) {
 			errCode = api.ErrorCode_ERR_NOT_FOUND
 		} else if errMsg == "doll already locked" || errMsg == "doll already unlocked" {
 			errCode = api.ErrorCode_ERR_ALREADY_EXISTS

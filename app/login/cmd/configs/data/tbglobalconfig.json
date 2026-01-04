@@ -1,8 +1,0 @@
-[
-  {
-    "team_max_members": 5,
-    "team_invite_max_count": 10,
-    "team_invite_expire_time": 60,
-    "enable_cross_server_team": true
-  }
-]

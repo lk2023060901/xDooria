@@ -1,0 +1,56 @@
+[
+  {
+    "id": 1,
+    "gacha_id": 1,
+    "trigger_count": 10,
+    "pity_drop_id": 0,
+    "target_quality": 2,
+    "extra_reward_type": 0,
+    "extra_reward_id": 0
+  },
+  {
+    "id": 2,
+    "gacha_id": 1,
+    "trigger_count": 50,
+    "pity_drop_id": 201,
+    "target_quality": 3,
+    "extra_reward_type": 0,
+    "extra_reward_id": 0
+  },
+  {
+    "id": 3,
+    "gacha_id": 1,
+    "trigger_count": 90,
+    "pity_drop_id": 202,
+    "target_quality": 4,
+    "extra_reward_type": 1,
+    "extra_reward_id": 20001
+  },
+  {
+    "id": 11,
+    "gacha_id": 2,
+    "trigger_count": 10,
+    "pity_drop_id": 0,
+    "target_quality": 2,
+    "extra_reward_type": 0,
+    "extra_reward_id": 0
+  },
+  {
+    "id": 12,
+    "gacha_id": 2,
+    "trigger_count": 30,
+    "pity_drop_id": 103,
+    "target_quality": 3,
+    "extra_reward_type": 0,
+    "extra_reward_id": 0
+  },
+  {
+    "id": 13,
+    "gacha_id": 2,
+    "trigger_count": 60,
+    "pity_drop_id": 104,
+    "target_quality": 4,
+    "extra_reward_type": 1,
+    "extra_reward_id": 20002
+  }
+]

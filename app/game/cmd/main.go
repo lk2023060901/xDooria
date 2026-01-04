@@ -13,8 +13,7 @@ import (
 
 // GameConfigConfig 游戏配置表加载配置
 type GameConfigConfig struct {
-	RequiredTables []string `mapstructure:"required_tables"`
-	OptionalTables []string `mapstructure:"optional_tables"`
+	DataDir string `mapstructure:"data_dir"`
 }
 
 // Config 定义 Game 服务的完整配置结构

@@ -57,11 +57,8 @@ func (d *RoleDAO) GetByID(ctx context.Context, roleID int64) (*model.Role, error
 		&role.AvatarURL,
 		&role.Appearance,
 		&role.Outfit,
-		&role.Gold,
-		&role.Diamond,
 		&role.Level,
 		&role.Exp,
-		&role.VIPLevel,
 		&role.VIPExp,
 		&role.Status,
 		&role.BanExpireAt,
@@ -108,11 +105,8 @@ func (d *RoleDAO) GetByUID(ctx context.Context, uid int64) (*model.Role, error) 
 		&role.AvatarURL,
 		&role.Appearance,
 		&role.Outfit,
-		&role.Gold,
-		&role.Diamond,
 		&role.Level,
 		&role.Exp,
-		&role.VIPLevel,
 		&role.VIPExp,
 		&role.Status,
 		&role.BanExpireAt,
@@ -172,11 +166,8 @@ func (d *RoleDAO) ListByUID(ctx context.Context, uid int64) ([]*model.Role, erro
 			&role.AvatarURL,
 			&role.Appearance,
 			&role.Outfit,
-			&role.Gold,
-			&role.Diamond,
 			&role.Level,
 			&role.Exp,
-			&role.VIPLevel,
 			&role.VIPExp,
 			&role.Status,
 			&role.BanExpireAt,
@@ -217,15 +208,13 @@ func (d *RoleDAO) Create(ctx context.Context, role *model.Role) error {
 		Columns(
 			"uid", "nickname", "gender", "signature", "avatar_url",
 			"appearance", "outfit",
-			"gold", "diamond",
-			"level", "exp", "vip_level", "vip_exp",
+			"level", "exp", "vip_exp",
 			"status",
 		).
 		Values(
 			role.UID, role.Nickname, role.Gender, role.Signature, role.AvatarURL,
 			role.Appearance, role.Outfit,
-			role.Gold, role.Diamond,
-			role.Level, role.Exp, role.VIPLevel, role.VIPExp,
+			role.Level, role.Exp, role.VIPExp,
 			role.Status,
 		).
 		Suffix("RETURNING id, created_at, updated_at").
@@ -274,11 +263,8 @@ func (d *RoleDAO) Update(ctx context.Context, role *model.Role) error {
 		Set("avatar_url", role.AvatarURL).
 		Set("appearance", role.Appearance).
 		Set("outfit", role.Outfit).
-		Set("gold", role.Gold).
-		Set("diamond", role.Diamond).
 		Set("level", role.Level).
 		Set("exp", role.Exp).
-		Set("vip_level", role.VIPLevel).
 		Set("vip_exp", role.VIPExp).
 		Set("status", role.Status).
 		Set("ban_expire_at", role.BanExpireAt).

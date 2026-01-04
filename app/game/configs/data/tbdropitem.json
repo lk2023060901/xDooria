@@ -1,0 +1,178 @@
+[
+  {
+    "id": 1,
+    "group_id": 1,
+    "item_id": 40001,
+    "count_min": 1,
+    "count_max": 1,
+    "drop_value": 100
+  },
+  {
+    "id": 2,
+    "group_id": 1,
+    "item_id": 40002,
+    "count_min": 1,
+    "count_max": 1,
+    "drop_value": 100
+  },
+  {
+    "id": 3,
+    "group_id": 1,
+    "item_id": 40003,
+    "count_min": 1,
+    "count_max": 1,
+    "drop_value": 100
+  },
+  {
+    "id": 4,
+    "group_id": 1,
+    "item_id": 40004,
+    "count_min": 1,
+    "count_max": 1,
+    "drop_value": 100
+  },
+  {
+    "id": 5,
+    "group_id": 1,
+    "item_id": 40005,
+    "count_min": 1,
+    "count_max": 1,
+    "drop_value": 100
+  },
+  {
+    "id": 6,
+    "group_id": 1,
+    "item_id": 40006,
+    "count_min": 1,
+    "count_max": 1,
+    "drop_value": 100
+  },
+  {
+    "id": 11,
+    "group_id": 2,
+    "item_id": 40101,
+    "count_min": 1,
+    "count_max": 1,
+    "drop_value": 100
+  },
+  {
+    "id": 12,
+    "group_id": 2,
+    "item_id": 40102,
+    "count_min": 1,
+    "count_max": 1,
+    "drop_value": 100
+  },
+  {
+    "id": 13,
+    "group_id": 2,
+    "item_id": 40103,
+    "count_min": 1,
+    "count_max": 1,
+    "drop_value": 100
+  },
+  {
+    "id": 14,
+    "group_id": 2,
+    "item_id": 40104,
+    "count_min": 1,
+    "count_max": 1,
+    "drop_value": 100
+  },
+  {
+    "id": 21,
+    "group_id": 3,
+    "item_id": 40201,
+    "count_min": 1,
+    "count_max": 1,
+    "drop_value": 100
+  },
+  {
+    "id": 22,
+    "group_id": 3,
+    "item_id": 40202,
+    "count_min": 1,
+    "count_max": 1,
+    "drop_value": 100
+  },
+  {
+    "id": 101,
+    "group_id": 101,
+    "item_id": 40001,
+    "count_min": 1,
+    "count_max": 1,
+    "drop_value": 100
+  },
+  {
+    "id": 102,
+    "group_id": 101,
+    "item_id": 40002,
+    "count_min": 1,
+    "count_max": 1,
+    "drop_value": 100
+  },
+  {
+    "id": 103,
+    "group_id": 101,
+    "item_id": 40003,
+    "count_min": 1,
+    "count_max": 1,
+    "drop_value": 100
+  },
+  {
+    "id": 111,
+    "group_id": 102,
+    "item_id": 40101,
+    "count_min": 1,
+    "count_max": 1,
+    "drop_value": 100
+  },
+  {
+    "id": 112,
+    "group_id": 102,
+    "item_id": 40102,
+    "count_min": 1,
+    "count_max": 1,
+    "drop_value": 100
+  },
+  {
+    "id": 121,
+    "group_id": 103,
+    "item_id": 40201,
+    "count_min": 1,
+    "count_max": 1,
+    "drop_value": 100
+  },
+  {
+    "id": 131,
+    "group_id": 104,
+    "item_id": 40301,
+    "count_min": 1,
+    "count_max": 1,
+    "drop_value": 100
+  },
+  {
+    "id": 201,
+    "group_id": 201,
+    "item_id": 40201,
+    "count_min": 1,
+    "count_max": 1,
+    "drop_value": 50
+  },
+  {
+    "id": 202,
+    "group_id": 201,
+    "item_id": 40202,
+    "count_min": 1,
+    "count_max": 1,
+    "drop_value": 50
+  },
+  {
+    "id": 211,
+    "group_id": 202,
+    "item_id": 40301,
+    "count_min": 1,
+    "count_max": 1,
+    "drop_value": 100
+  }
+]

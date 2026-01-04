@@ -3,7 +3,7 @@ package model
 import (
 	"fmt"
 
-	"github.com/lk2023060901/xdooria/app/game/internal/config"
+	"github.com/lk2023060901/xdooria/app/game/internal/gameconfig"
 )
 
 // EquipmentBag 装备栏实现（带槽位限制）
@@ -14,7 +14,7 @@ type EquipmentBag struct {
 // NewEquipmentBag 创建装备栏
 func NewEquipmentBag(id, roleID int64, capacity int32) *EquipmentBag {
 	return &EquipmentBag{
-		BaseBag: NewBaseBag(id, roleID, config.BagType_Equipment, capacity),
+		BaseBag: NewBaseBag(id, roleID, gameconfig.BagType_Equipment, capacity),
 	}
 }
 
@@ -22,12 +22,12 @@ func NewEquipmentBag(id, roleID int64, capacity int32) *EquipmentBag {
 
 // 装备栏槽位映射（槽位索引 -> 装备子类型）
 var equipmentSlotMap = map[int32]int32{
-	0: config.ItemSubType_EquipWeapon,  // 武器
-	1: config.ItemSubType_EquipHelmet,  // 头盔
-	2: config.ItemSubType_EquipGloves,  // 手套
-	3: config.ItemSubType_EquipArmor,   // 上衣
-	4: config.ItemSubType_EquipPants,   // 裤子
-	5: config.ItemSubType_EquipBoots,   // 鞋子
+	0: gameconfig.ItemSubType_EquipWeapon,  // 武器
+	1: gameconfig.ItemSubType_EquipHelmet,  // 头盔
+	2: gameconfig.ItemSubType_EquipGloves,  // 手套
+	3: gameconfig.ItemSubType_EquipArmor,   // 上衣
+	4: gameconfig.ItemSubType_EquipPants,   // 裤子
+	5: gameconfig.ItemSubType_EquipBoots,   // 鞋子
 }
 
 // validateSlot 验证物品是否可以放入指定槽位
@@ -45,7 +45,7 @@ func (b *EquipmentBag) validateSlot(item *Item, slotIndex int32) error {
 	}
 
 	// 验证物品类型
-	if cfg.Type != config.ItemType_Equipment {
+	if cfg.Type != gameconfig.ItemType_Equipment {
 		return fmt.Errorf("item is not equipment: %d", item.ConfigID)
 	}
 
@@ -88,7 +88,7 @@ func (b *EquipmentBag) AutoAdd(item *Item) (int32, error) {
 	}
 
 	// 验证物品类型
-	if cfg.Type != config.ItemType_Equipment {
+	if cfg.Type != gameconfig.ItemType_Equipment {
 		return -1, fmt.Errorf("item is not equipment: %d", item.ConfigID)
 	}
 

@@ -2,10 +2,12 @@ package dao
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/Masterminds/squirrel"
+	"github.com/lk2023060901/xdooria/app/game/internal/gameconfig"
 	"github.com/lk2023060901/xdooria/app/game/internal/metrics"
 	"github.com/lk2023060901/xdooria/app/game/internal/model"
 	"github.com/lk2023060901/xdooria/pkg/database/postgres"
@@ -19,7 +21,6 @@ type DollDAO struct {
 	metrics *metrics.GameMetrics
 }
 
-// NewDollDAO 创建玩偶 DAO
 func NewDollDAO(db *postgres.Client, l logger.Logger, m *metrics.GameMetrics) *DollDAO {
 	return &DollDAO{
 		db:      db,
@@ -28,360 +29,228 @@ func NewDollDAO(db *postgres.Client, l logger.Logger, m *metrics.GameMetrics) *D
 	}
 }
 
-// ListByPlayerID 查询玩家所有玩偶
+// dollBagData 玩偶背包存储结构
+type dollBagData struct {
+	Dolls []*model.Doll `json:"dolls"`
+}
+
+// ListByPlayerID 获取玩家所有玩偶
 func (d *DollDAO) ListByPlayerID(ctx context.Context, playerID int64) ([]*model.Doll, error) {
 	start := time.Now()
 	defer func() {
-		duration := time.Since(start).Seconds()
-		d.metrics.RecordDBQuery("select", true, duration)
+		d.metrics.RecordDBQuery("select", true, time.Since(start).Seconds())
 	}()
 
 	query, args, err := squirrel.
-		Select("id", "player_id", "doll_id", "quality", "is_locked", "is_redeemed", "created_at").
-		From("player_doll").
-		Where(squirrel.Eq{"player_id": playerID}).
-		OrderBy("created_at DESC").
+		Select("data").
+		From("player_bags").
+		Where(squirrel.Eq{"role_id": playerID, "bag_type": gameconfig.BagType_Costume}).
 		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to build query: %w", err)
+		return nil, err
 	}
 
-	rows, err := d.db.Query(ctx, query, args...)
+	var data []byte
+	err = d.db.QueryRow(ctx, query, args...).Scan(&data)
 	if err != nil {
-		d.logger.Error("failed to list dolls by player_id",
-			"player_id", playerID,
-			"error", err,
-		)
-		return nil, fmt.Errorf("failed to list dolls: %w", err)
-	}
-	defer rows.Close()
-
-	var dolls []*model.Doll
-	for rows.Next() {
-		var doll model.Doll
-		if err := rows.Scan(
-			&doll.ID,
-			&doll.PlayerID,
-			&doll.DollID,
-			&doll.Quality,
-			&doll.IsLocked,
-			&doll.IsRedeemed,
-			&doll.CreatedAt,
-		); err != nil {
-			d.logger.Error("failed to scan doll",
-				"player_id", playerID,
-				"error", err,
-			)
-			return nil, fmt.Errorf("failed to scan doll: %w", err)
+		if err == postgres.ErrNoRows {
+			return []*model.Doll{}, nil
 		}
-		dolls = append(dolls, &doll)
+		return nil, fmt.Errorf("failed to get dolls: %w", err)
 	}
 
-	if err := rows.Err(); err != nil {
-		d.logger.Error("rows iteration error",
-			"player_id", playerID,
-			"error", err,
-		)
-		return nil, fmt.Errorf("rows iteration error: %w", err)
+	var bagData dollBagData
+	if err := json.Unmarshal(data, &bagData); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal doll data: %w", err)
 	}
 
-	return dolls, nil
+	return bagData.Dolls, nil
 }
 
-// GetByID 根据ID查询玩偶
-func (d *DollDAO) GetByID(ctx context.Context, id int64) (*model.Doll, error) {
+// saveDolls 保存玩偶列表
+func (d *DollDAO) saveDolls(ctx context.Context, playerID int64, dolls []*model.Doll) error {
 	start := time.Now()
 	defer func() {
-		duration := time.Since(start).Seconds()
-		d.metrics.RecordDBQuery("select", true, duration)
+		d.metrics.RecordDBQuery("upsert", true, time.Since(start).Seconds())
 	}()
 
+	bagData := dollBagData{Dolls: dolls}
+	data, err := json.Marshal(bagData)
+	if err != nil {
+		return err
+	}
+
 	query, args, err := squirrel.
-		Select("id", "player_id", "doll_id", "quality", "is_locked", "is_redeemed", "created_at").
-		From("player_doll").
-		Where(squirrel.Eq{"id": id}).
+		Insert("player_bags").
+		Columns("role_id", "bag_type", "data", "updated_at").
+		Values(playerID, gameconfig.BagType_Costume, data, time.Now()).
+		Suffix("ON CONFLICT (role_id, bag_type) DO UPDATE SET data = EXCLUDED.data, updated_at = EXCLUDED.updated_at").
 		PlaceholderFormat(squirrel.Dollar).
 		ToSql()
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to build query: %w", err)
-	}
-
-	var doll model.Doll
-	if err := d.db.QueryRow(ctx, query, args...).Scan(
-		&doll.ID,
-		&doll.PlayerID,
-		&doll.DollID,
-		&doll.Quality,
-		&doll.IsLocked,
-		&doll.IsRedeemed,
-		&doll.CreatedAt,
-	); err != nil {
-		d.logger.Error("failed to get doll by id",
-			"id", id,
-			"error", err,
-		)
-		return nil, fmt.Errorf("failed to get doll: %w", err)
-	}
-
-	return &doll, nil
-}
-
-// Create 创建玩偶实例
-func (d *DollDAO) Create(ctx context.Context, doll *model.Doll) error {
-	start := time.Now()
-	defer func() {
-		duration := time.Since(start).Seconds()
-		d.metrics.RecordDBQuery("insert", true, duration)
-	}()
-
-	query, args, err := squirrel.
-		Insert("player_doll").
-		Columns("id", "player_id", "doll_id", "quality", "is_locked", "is_redeemed", "created_at").
-		Values(doll.ID, doll.PlayerID, doll.DollID, doll.Quality, doll.IsLocked, doll.IsRedeemed, doll.CreatedAt).
-		PlaceholderFormat(squirrel.Dollar).
-		ToSql()
-
-	if err != nil {
-		return fmt.Errorf("failed to build query: %w", err)
+		return err
 	}
 
 	if _, err := d.db.Exec(ctx, query, args...); err != nil {
-		d.logger.Error("failed to create doll",
-			"player_id", doll.PlayerID,
-			"doll_id", doll.DollID,
-			"error", err,
-		)
-		return fmt.Errorf("failed to create doll: %w", err)
+		return fmt.Errorf("failed to save dolls: %w", err)
 	}
-
-	d.logger.Info("doll created",
-		"id", doll.ID,
-		"player_id", doll.PlayerID,
-		"doll_id", doll.DollID,
-		"quality", doll.Quality,
-	)
 
 	return nil
 }
 
-// BatchCreate 批量创建玩偶实例
-func (d *DollDAO) BatchCreate(ctx context.Context, dolls []*model.Doll) error {
-	if len(dolls) == 0 {
+// Create 添加玩偶
+func (d *DollDAO) Create(ctx context.Context, doll *model.Doll) error {
+	dolls, err := d.ListByPlayerID(ctx, doll.PlayerID)
+	if err != nil {
+		return err
+	}
+
+	dolls = append(dolls, doll)
+	return d.saveDolls(ctx, doll.PlayerID, dolls)
+}
+
+// BatchCreate 批量添加玩偶
+func (d *DollDAO) BatchCreate(ctx context.Context, newDolls []*model.Doll) error {
+	if len(newDolls) == 0 {
 		return nil
 	}
 
-	start := time.Now()
-	defer func() {
-		duration := time.Since(start).Seconds()
-		d.metrics.RecordDBQuery("insert", true, duration)
-	}()
-
-	builder := squirrel.
-		Insert("player_doll").
-		Columns("id", "player_id", "doll_id", "quality", "is_locked", "is_redeemed", "created_at")
-
-	for _, doll := range dolls {
-		builder = builder.Values(doll.ID, doll.PlayerID, doll.DollID, doll.Quality, doll.IsLocked, doll.IsRedeemed, doll.CreatedAt)
+	// 按 playerID 分组
+	byPlayer := make(map[int64][]*model.Doll)
+	for _, doll := range newDolls {
+		byPlayer[doll.PlayerID] = append(byPlayer[doll.PlayerID], doll)
 	}
 
-	query, args, err := builder.PlaceholderFormat(squirrel.Dollar).ToSql()
-	if err != nil {
-		return fmt.Errorf("failed to build query: %w", err)
+	for playerID, playerDolls := range byPlayer {
+		existing, err := d.ListByPlayerID(ctx, playerID)
+		if err != nil {
+			return err
+		}
+		existing = append(existing, playerDolls...)
+		if err := d.saveDolls(ctx, playerID, existing); err != nil {
+			return err
+		}
 	}
-
-	if _, err := d.db.Exec(ctx, query, args...); err != nil {
-		d.logger.Error("failed to batch create dolls",
-			"count", len(dolls),
-			"error", err,
-		)
-		return fmt.Errorf("failed to batch create dolls: %w", err)
-	}
-
-	d.logger.Info("dolls batch created",
-		"count", len(dolls),
-	)
 
 	return nil
 }
 
 // UpdateLockStatus 更新锁定状态
-func (d *DollDAO) UpdateLockStatus(ctx context.Context, id int64, isLocked bool) error {
-	start := time.Now()
-	defer func() {
-		duration := time.Since(start).Seconds()
-		d.metrics.RecordDBQuery("update", true, duration)
-	}()
+func (d *DollDAO) UpdateLockStatus(ctx context.Context, dollID int64, isLocked bool) error {
+	// 需要先找到玩偶所属的玩家，遍历所有背包（效率较低，但符合当前存储模型）
+	// 实际使用时，repository 层应该有缓存或传递 playerID
+	return fmt.Errorf("UpdateLockStatus requires playerID, use UpdateLockStatusByPlayer instead")
+}
 
-	query, args, err := squirrel.
-		Update("player_doll").
-		Set("is_locked", isLocked).
-		Where(squirrel.Eq{"id": id}).
-		PlaceholderFormat(squirrel.Dollar).
-		ToSql()
-
+// UpdateLockStatusByPlayer 更新锁定状态（带 playerID）
+func (d *DollDAO) UpdateLockStatusByPlayer(ctx context.Context, playerID int64, dollID int64, isLocked bool) error {
+	dolls, err := d.ListByPlayerID(ctx, playerID)
 	if err != nil {
-		return fmt.Errorf("failed to build query: %w", err)
+		return err
 	}
 
-	if _, err := d.db.Exec(ctx, query, args...); err != nil {
-		d.logger.Error("failed to update lock status",
-			"id", id,
-			"is_locked", isLocked,
-			"error", err,
-		)
-		return fmt.Errorf("failed to update lock status: %w", err)
+	for _, doll := range dolls {
+		if doll.ID == dollID {
+			doll.IsLocked = isLocked
+			return d.saveDolls(ctx, playerID, dolls)
+		}
 	}
 
-	d.logger.Debug("doll lock status updated",
-		"id", id,
-		"is_locked", isLocked,
-	)
-
-	return nil
+	return fmt.Errorf("doll not found")
 }
 
 // UpdateRedeemStatus 更新兑换状态
-func (d *DollDAO) UpdateRedeemStatus(ctx context.Context, id int64, isRedeemed bool) error {
-	start := time.Now()
-	defer func() {
-		duration := time.Since(start).Seconds()
-		d.metrics.RecordDBQuery("update", true, duration)
-	}()
-
-	query, args, err := squirrel.
-		Update("player_doll").
-		Set("is_redeemed", isRedeemed).
-		Where(squirrel.Eq{"id": id}).
-		PlaceholderFormat(squirrel.Dollar).
-		ToSql()
-
-	if err != nil {
-		return fmt.Errorf("failed to build query: %w", err)
-	}
-
-	if _, err := d.db.Exec(ctx, query, args...); err != nil {
-		d.logger.Error("failed to update redeem status",
-			"id", id,
-			"is_redeemed", isRedeemed,
-			"error", err,
-		)
-		return fmt.Errorf("failed to update redeem status: %w", err)
-	}
-
-	d.logger.Info("doll redeem status updated",
-		"id", id,
-		"is_redeemed", isRedeemed,
-	)
-
-	return nil
+func (d *DollDAO) UpdateRedeemStatus(ctx context.Context, dollID int64, isRedeemed bool) error {
+	return fmt.Errorf("UpdateRedeemStatus requires playerID, use UpdateRedeemStatusByPlayer instead")
 }
 
-// UpdateQuality 更新品质（熔炼用）
-func (d *DollDAO) UpdateQuality(ctx context.Context, id int64, quality int16) error {
-	start := time.Now()
-	defer func() {
-		duration := time.Since(start).Seconds()
-		d.metrics.RecordDBQuery("update", true, duration)
-	}()
-
-	query, args, err := squirrel.
-		Update("player_doll").
-		Set("quality", quality).
-		Where(squirrel.Eq{"id": id}).
-		PlaceholderFormat(squirrel.Dollar).
-		ToSql()
-
+// UpdateRedeemStatusByPlayer 更新兑换状态（带 playerID）
+func (d *DollDAO) UpdateRedeemStatusByPlayer(ctx context.Context, playerID int64, dollID int64, isRedeemed bool) error {
+	dolls, err := d.ListByPlayerID(ctx, playerID)
 	if err != nil {
-		return fmt.Errorf("failed to build query: %w", err)
+		return err
 	}
 
-	if _, err := d.db.Exec(ctx, query, args...); err != nil {
-		d.logger.Error("failed to update quality",
-			"id", id,
-			"quality", quality,
-			"error", err,
-		)
-		return fmt.Errorf("failed to update quality: %w", err)
+	for _, doll := range dolls {
+		if doll.ID == dollID {
+			doll.IsRedeemed = isRedeemed
+			return d.saveDolls(ctx, playerID, dolls)
+		}
 	}
 
-	d.logger.Info("doll quality updated",
-		"id", id,
-		"quality", quality,
-	)
-
-	return nil
+	return fmt.Errorf("doll not found")
 }
 
-// Delete 删除玩偶（单个）
-func (d *DollDAO) Delete(ctx context.Context, id int64) error {
-	start := time.Now()
-	defer func() {
-		duration := time.Since(start).Seconds()
-		d.metrics.RecordDBQuery("delete", true, duration)
-	}()
-
-	query, args, err := squirrel.
-		Delete("player_doll").
-		Where(squirrel.Eq{"id": id}).
-		PlaceholderFormat(squirrel.Dollar).
-		ToSql()
-
-	if err != nil {
-		return fmt.Errorf("failed to build query: %w", err)
-	}
-
-	if _, err := d.db.Exec(ctx, query, args...); err != nil {
-		d.logger.Error("failed to delete doll",
-			"id", id,
-			"error", err,
-		)
-		return fmt.Errorf("failed to delete doll: %w", err)
-	}
-
-	d.logger.Info("doll deleted",
-		"id", id,
-	)
-
-	return nil
+// UpdateQuality 更新品质
+func (d *DollDAO) UpdateQuality(ctx context.Context, dollID int64, quality int16) error {
+	return fmt.Errorf("UpdateQuality requires playerID, use UpdateQualityByPlayer instead")
 }
 
-// BatchDelete 批量删除玩偶（熔炼用）
-func (d *DollDAO) BatchDelete(ctx context.Context, ids []int64) error {
-	if len(ids) == 0 {
-		return nil
-	}
-
-	start := time.Now()
-	defer func() {
-		duration := time.Since(start).Seconds()
-		d.metrics.RecordDBQuery("delete", true, duration)
-	}()
-
-	query, args, err := squirrel.
-		Delete("player_doll").
-		Where(squirrel.Eq{"id": ids}).
-		PlaceholderFormat(squirrel.Dollar).
-		ToSql()
-
+// UpdateQualityByPlayer 更新品质（带 playerID）
+func (d *DollDAO) UpdateQualityByPlayer(ctx context.Context, playerID int64, dollID int64, quality int16) error {
+	dolls, err := d.ListByPlayerID(ctx, playerID)
 	if err != nil {
-		return fmt.Errorf("failed to build query: %w", err)
+		return err
 	}
 
-	if _, err := d.db.Exec(ctx, query, args...); err != nil {
-		d.logger.Error("failed to batch delete dolls",
-			"count", len(ids),
-			"error", err,
-		)
-		return fmt.Errorf("failed to batch delete dolls: %w", err)
+	for _, doll := range dolls {
+		if doll.ID == dollID {
+			doll.Quality = quality
+			return d.saveDolls(ctx, playerID, dolls)
+		}
 	}
 
-	d.logger.Info("dolls batch deleted",
-		"count", len(ids),
-		"ids", ids,
-	)
+	return fmt.Errorf("doll not found")
+}
 
-	return nil
+// Delete 删除玩偶
+func (d *DollDAO) Delete(ctx context.Context, dollID int64) error {
+	return fmt.Errorf("Delete requires playerID, use DeleteByPlayer instead")
+}
+
+// DeleteByPlayer 删除玩偶（带 playerID）
+func (d *DollDAO) DeleteByPlayer(ctx context.Context, playerID int64, dollID int64) error {
+	dolls, err := d.ListByPlayerID(ctx, playerID)
+	if err != nil {
+		return err
+	}
+
+	for i, doll := range dolls {
+		if doll.ID == dollID {
+			dolls = append(dolls[:i], dolls[i+1:]...)
+			return d.saveDolls(ctx, playerID, dolls)
+		}
+	}
+
+	return fmt.Errorf("doll not found")
+}
+
+// BatchDelete 批量删除玩偶
+func (d *DollDAO) BatchDelete(ctx context.Context, dollIDs []int64) error {
+	return fmt.Errorf("BatchDelete requires playerID, use BatchDeleteByPlayer instead")
+}
+
+// BatchDeleteByPlayer 批量删除玩偶（带 playerID）
+func (d *DollDAO) BatchDeleteByPlayer(ctx context.Context, playerID int64, dollIDs []int64) error {
+	dolls, err := d.ListByPlayerID(ctx, playerID)
+	if err != nil {
+		return err
+	}
+
+	idSet := make(map[int64]bool)
+	for _, id := range dollIDs {
+		idSet[id] = true
+	}
+
+	filtered := make([]*model.Doll, 0, len(dolls))
+	for _, doll := range dolls {
+		if !idSet[doll.ID] {
+			filtered = append(filtered, doll)
+		}
+	}
+
+	return d.saveDolls(ctx, playerID, filtered)
 }

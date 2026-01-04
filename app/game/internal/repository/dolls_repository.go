@@ -125,7 +125,7 @@ func (r *playerRepositoryImpl) AddDolls(ctx context.Context, dolls []*model.Doll
 // UpdateDollLock 更新玩偶锁定状态（写数据库 + 更新缓存）
 func (r *playerRepositoryImpl) UpdateDollLock(ctx context.Context, playerID int64, dollID int64, isLocked bool) error {
 	// 1. 更新数据库
-	if err := r.dollDAO.UpdateLockStatus(ctx, dollID, isLocked); err != nil {
+	if err := r.dollDAO.UpdateLockStatusByPlayer(ctx, playerID, dollID, isLocked); err != nil {
 		return fmt.Errorf("failed to update lock status: %w", err)
 	}
 
@@ -158,7 +158,7 @@ func (r *playerRepositoryImpl) UpdateDollLock(ctx context.Context, playerID int6
 // UpdateDollRedeem 更新玩偶兑换状态（写数据库 + 更新缓存）
 func (r *playerRepositoryImpl) UpdateDollRedeem(ctx context.Context, playerID int64, dollID int64, isRedeemed bool) error {
 	// 1. 更新数据库
-	if err := r.dollDAO.UpdateRedeemStatus(ctx, dollID, isRedeemed); err != nil {
+	if err := r.dollDAO.UpdateRedeemStatusByPlayer(ctx, playerID, dollID, isRedeemed); err != nil {
 		return fmt.Errorf("failed to update redeem status: %w", err)
 	}
 
@@ -191,7 +191,7 @@ func (r *playerRepositoryImpl) UpdateDollRedeem(ctx context.Context, playerID in
 // UpdateDollQuality 更新玩偶品质（写数据库 + 更新缓存）
 func (r *playerRepositoryImpl) UpdateDollQuality(ctx context.Context, playerID int64, dollID int64, quality int16) error {
 	// 1. 更新数据库
-	if err := r.dollDAO.UpdateQuality(ctx, dollID, quality); err != nil {
+	if err := r.dollDAO.UpdateQualityByPlayer(ctx, playerID, dollID, quality); err != nil {
 		return fmt.Errorf("failed to update quality: %w", err)
 	}
 
@@ -224,7 +224,7 @@ func (r *playerRepositoryImpl) UpdateDollQuality(ctx context.Context, playerID i
 // DeleteDoll 删除玩偶（写数据库 + 更新缓存）
 func (r *playerRepositoryImpl) DeleteDoll(ctx context.Context, playerID int64, dollID int64) error {
 	// 1. 删除数据库记录
-	if err := r.dollDAO.Delete(ctx, dollID); err != nil {
+	if err := r.dollDAO.DeleteByPlayer(ctx, playerID, dollID); err != nil {
 		return fmt.Errorf("failed to delete doll: %w", err)
 	}
 
@@ -260,7 +260,7 @@ func (r *playerRepositoryImpl) DeleteDolls(ctx context.Context, playerID int64, 
 	}
 
 	// 1. 批量删除数据库记录
-	if err := r.dollDAO.BatchDelete(ctx, dollIDs); err != nil {
+	if err := r.dollDAO.BatchDeleteByPlayer(ctx, playerID, dollIDs); err != nil {
 		return fmt.Errorf("failed to batch delete dolls: %w", err)
 	}
 
@@ -294,3 +294,29 @@ func (r *playerRepositoryImpl) DeleteDolls(ctx context.Context, playerID int64, 
 
 	return nil
 }
+
+// ============ 抽卡相关实现 ============
+
+// GetGachaRecords 获取玩家抽卡记录
+func (r *playerRepositoryImpl) GetGachaRecords(ctx context.Context, roleID int64) (*model.PlayerGacha, error) {
+	return r.gachaDAO.GetByRoleID(ctx, roleID)
+}
+
+// SaveGachaRecords 保存玩家抽卡记录
+func (r *playerRepositoryImpl) SaveGachaRecords(ctx context.Context, gacha *model.PlayerGacha) error {
+	return r.gachaDAO.Save(ctx, gacha)
+}
+
+// ============ 背包相关实现 ============
+
+// GetBag 获取玩家指定类型的背包
+func (r *playerRepositoryImpl) GetBag(ctx context.Context, roleID int64, bagType int32) (*model.PlayerBag, error) {
+	// 目前直接查库，因为背包变更频繁，后续可考虑加入针对不同 BagType 的缓存策略
+	return r.bagDAO.GetBag(ctx, roleID, bagType)
+}
+
+// SaveBag 保存玩家背包
+func (r *playerRepositoryImpl) SaveBag(ctx context.Context, bag *model.PlayerBag) error {
+	return r.bagDAO.SaveBag(ctx, bag)
+}
+
